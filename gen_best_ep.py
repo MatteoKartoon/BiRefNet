@@ -34,7 +34,7 @@ for metric in metrics:
                 'sm': [5, 2, 2, 5, 5, 2],
                 'wfm': [3, 3, 8, 3, 3, 8],
                 'hce': [7, -1, -1, 7, 7, -1]
-            }[metric][['DIS5K', 'COD', 'HRSOD', 'General', 'General-2K', 'Matting'].index(config.task)]
+            }[metric][['DIS5K', 'COD', 'HRSOD', 'fine_tuning', 'General-2K', 'Matting'].index(config.task)]
             if metric != 'hce':
                 score_sm = float(properties[targe_idx].strip())
             else:
