@@ -8,8 +8,8 @@ class Config():
         # Make up your file system as: SYS_HOME_DIR/codes/dis/BiRefNet, SYS_HOME_DIR/datasets/dis/xx, SYS_HOME_DIR/weights/xx
 
         absolute_path = os.path.dirname(__file__)
-        self.sys_home_dir = absolute_path.replace('\\codes', '')
-        self.data_root_dir = os.path.join(self.sys_home_dir, 'datasets\\fine_tuning')
+        self.sys_home_dir = absolute_path.replace('/codes/dis/BiRefNet', '')
+        self.data_root_dir = os.path.join(self.sys_home_dir, 'datasets/dis')
 
         # TASK settings
         self.task = ['DIS5K', 'COD', 'HRSOD', 'fine_tuning', 'General-2K', 'Matting'][3]
