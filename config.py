@@ -28,7 +28,7 @@ class Config():
             'DIS5K': ['DIS-TR', 'DIS-TR+DIS-TE1+DIS-TE2+DIS-TE3+DIS-TE4'][0],
             'COD': 'TR-COD10K+TR-CAMO',
             'HRSOD': ['TR-DUTS', 'TR-HRSOD', 'TR-UHRSD', 'TR-DUTS+TR-HRSOD', 'TR-DUTS+TR-UHRSD', 'TR-HRSOD+TR-UHRSD', 'TR-DUTS+TR-HRSOD+TR-UHRSD'][5],
-            'fine_tuning': datasets_all,
+            'fine_tuning': self.data_root_dir+"/fine_tuning",
             'General-2K': datasets_all,
             'Matting': datasets_all,
         }[self.task]
@@ -54,7 +54,7 @@ class Config():
         self.dec_blk = ['BasicDecBlk', 'ResBlk'][0]
 
         # TRAINING settings
-        self.batch_size = 4
+        self.batch_size = 2
         self.finetune_last_epochs = [
             0,
             {
@@ -184,8 +184,14 @@ class Config():
         if run_sh_file:
             with open(run_sh_file[0], 'r') as f:
                 lines = f.readlines()
-                self.save_last = int([l.strip() for l in lines if "'{}')".format(self.task) in l and 'val_last=' in l][0].split('val_last=')[-1].split()[0])
-                self.save_step = int([l.strip() for l in lines if "'{}')".format(self.task) in l and 'step=' in l][0].split('step=')[-1].split()[0])
+                try:
+                    self.save_last = int([l.strip() for l in lines if "'{}')".format(self.task) in l and 'val_last=' in l][0].split('val_last=')[-1].split()[0])
+                    self.save_step = int([l.strip() for l in lines if "'{}')".format(self.task) in l and 'step=' in l][0].split('step=')[-1].split()[0])
+                except IndexError:
+                    # Default values if patterns aren't found in train.sh
+                    self.save_last = 5 #how many epochs from the end starting saving checkpoints
+                    self.save_step = 1 #how many epochs between saving checkpoints
+                    print(f"Warning: Couldn't find configuration for task '{self.task}' in train.sh. Using default values: save_last={self.save_last}, save_step={self.save_step}")
 
 
 # Return task for choosing settings in shell scripts.
