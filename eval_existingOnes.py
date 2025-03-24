@@ -14,12 +14,13 @@ def do_eval(args):
     # evaluation for whole dataset
     # dataset first in evaluation
     for _data_name in args.data_lst.split('+'):
-        pred_data_dir =  sorted(glob(os.path.join(args.pred_root, args.model_lst[0], _data_name)))
+        pred_data_dir = [os.path.join("e_preds", args.ckpt_path, file_name) for file_name in os.listdir("e_preds/{}".format(args.ckpt_path))] #list of the files in the folder e_preds
         if not pred_data_dir:
             print('Skip dataset {}.'.format(_data_name))
             continue
-        gt_src = os.path.join(args.gt_root, _data_name)
-        gt_paths = sorted(glob(os.path.join(gt_src, 'gt', '*')))
+        gt_paths = sorted(glob(os.path.join(args.gt_root, 'gt', '*')))
+        pred_data_dir=sorted(pred_data_dir)
+        print(pred_data_dir)
         print('#' * 20, _data_name, '#' * 20)
         filename = os.path.join(args.save_dir, '{}_eval.txt'.format(_data_name))
         tb = pt.PrettyTable()
@@ -40,57 +41,20 @@ def do_eval(args):
             tb.field_names = ["Dataset", "Method", "Smeasure", 'MAE', "maxEm", "meanEm", "maxFm", "meanFm", "wFmeasure", "adpEm", "adpFm", "HCE", 'mBA', 'maxBIoU', 'meanBIoU']
         for _model_name in args.model_lst[:]:
             print('\t', 'Evaluating model: {}...'.format(_model_name))
-            pred_paths = [p.replace(args.gt_root, os.path.join(args.pred_root, _model_name)).replace('/gt/', '/') for p in gt_paths]
-            # print(pred_paths[:1], gt_paths[:1])
+            pred_paths = [os.path.join(".",p) for p in pred_data_dir]
+            print(pred_paths[:1], gt_paths[:1])
             em, sm, fm, mae, mse, wfm, hce, mba, biou = evaluator(
                 gt_paths=gt_paths,
                 pred_paths=pred_paths,
                 metrics=args.metrics.split('+'),
                 verbose=config.verbose_eval
             )
-            if config.task == 'DIS5K':
-                scores = [
-                    fm['curve'].max().round(3), wfm.round(3), mae.round(3), sm.round(3), em['curve'].mean().round(3), int(hce.round()), 
-                    em['curve'].max().round(3), fm['curve'].mean().round(3), em['adp'].round(3), fm['adp'].round(3),
-                    mba.round(3), biou['curve'].max().round(3), biou['curve'].mean().round(3),
-                ]
-            elif config.task == 'COD':
-                scores = [
-                    sm.round(3), wfm.round(3), fm['curve'].mean().round(3), em['curve'].mean().round(3), em['curve'].max().round(3), mae.round(3),
-                    fm['curve'].max().round(3), em['adp'].round(3), fm['adp'].round(3), int(hce.round()),
-                    mba.round(3), biou['curve'].max().round(3), biou['curve'].mean().round(3),
-                ]
-            elif config.task == 'HRSOD':
-                scores = [
-                    sm.round(3), fm['curve'].max().round(3), em['curve'].mean().round(3), mae.round(3),
-                    em['curve'].max().round(3), fm['curve'].mean().round(3), wfm.round(3), em['adp'].round(3), fm['adp'].round(3), int(hce.round()),
-                    mba.round(3), biou['curve'].max().round(3), biou['curve'].mean().round(3),
-                ]
-            elif config.task == 'fine_tuning':
-                scores = [
-                    fm['curve'].max().round(3), wfm.round(3), mae.round(3), sm.round(3), em['curve'].mean().round(3), int(hce.round()), 
-                    em['curve'].max().round(3), fm['curve'].mean().round(3), em['adp'].round(3), fm['adp'].round(3),
-                    mba.round(3), biou['curve'].max().round(3), biou['curve'].mean().round(3),
-                ]
-            elif config.task == 'General-2K':
-                scores = [
-                    fm['curve'].max().round(3), wfm.round(3), mae.round(3), sm.round(3), em['curve'].mean().round(3), int(hce.round()), 
-                    em['curve'].max().round(3), fm['curve'].mean().round(3), em['adp'].round(3), fm['adp'].round(3),
-                    mba.round(3), biou['curve'].max().round(3), biou['curve'].mean().round(3),
-                ]
-            elif config.task == 'Matting':
-                scores = [
-                    sm.round(3), fm['curve'].max().round(3), em['curve'].mean().round(3), mse.round(5),
-                    em['curve'].max().round(3), fm['curve'].mean().round(3), wfm.round(3), em['adp'].round(3), fm['adp'].round(3), int(hce.round()),
-                    mba.round(3), biou['curve'].max().round(3), biou['curve'].mean().round(3),
-                ]
-            else:
-                scores = [
-                    sm.round(3), mae.round(3), em['curve'].max().round(3), em['curve'].mean().round(3),
-                    fm['curve'].max().round(3), fm['curve'].mean().round(3), wfm.round(3),
-                    em['adp'].round(3), fm['adp'].round(3), int(hce.round()),
-                    mba.round(3), biou['curve'].max().round(3), biou['curve'].mean().round(3),
-                ]
+
+            scores = [
+                fm['curve'].max().round(3), wfm.round(3), mae.round(3), sm.round(3), em['curve'].mean().round(3), int(hce.round()), 
+                em['curve'].max().round(3), fm['curve'].mean().round(3), em['adp'].round(3), fm['adp'].round(3),
+                mba.round(3), biou['curve'].max().round(3), biou['curve'].mean().round(3),
+            ]
 
             for idx_score, score in enumerate(scores):
                 scores[idx_score] = '.' + format(score, '.3f').split('.')[-1] if score <= 1  else format(score, '<4')
@@ -106,6 +70,8 @@ if __name__ == '__main__':
     # set parameters
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        '--ckpt_path', type=str, help='ckpt path')
+    parser.add_argument(
         '--gt_root', type=str, help='ground-truth root',
         default=os.path.join(config.data_root_dir, config.task))
     parser.add_argument(
@@ -116,7 +82,7 @@ if __name__ == '__main__':
         default=config.testsets.replace(',', '+'))
     parser.add_argument(
         '--save_dir', type=str, help='candidate competitors',
-        default='e_results')
+        default='./e_results')
     parser.add_argument(
         '--check_integrity', type=bool, help='whether to check the file integrity',
         default=False)

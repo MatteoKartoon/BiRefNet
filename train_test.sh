@@ -1,12 +1,12 @@
 #!/bin/sh
-# Example: `setsid nohup ./train_test.sh BiRefNet 0,1,2,3,4,5,6,7 0 &>nohup.log &`
 
-method=${1:-"BSL"}
-devices=${2:-"0,1,2,3,4,5,6,7"}
+method=${1:-"fine_tuning"}
+devices=${2:-"0,1"}
 
-bash train.sh ${method} ${devices}
+bash train_finetuning.sh ${method} ${devices}
 
-devices_test=${3:-0}
-bash test.sh ${devices_test}
+devices_test=${3:-"0,1"}
+ckpt_path=${4:-"20250324__1450/epoch_294"}
+bash test.sh ${devices_test} ${ckpt_path}
 
 hostname

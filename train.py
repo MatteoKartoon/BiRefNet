@@ -5,6 +5,8 @@ import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from datetime import datetime as dt
+
 if tuple(map(int, torch.__version__.split('+')[0].split(".")[:3])) >= (2, 5, 0):
     os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
@@ -18,6 +20,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 
+weights_dir = '../../../weights/cv'
 
 parser = argparse.ArgumentParser(description='')
 parser.add_argument('--resume', default=None, type=str, help='path to latest checkpoint')
@@ -56,6 +59,11 @@ else:
         device = config.device
 
 epoch_st = 1
+
+# Create a folder inside ckpt_dir based on date with format yyyymmdd__hhmm
+current_time = dt.now().strftime("%Y%m%d__%H%M")
+args.ckpt_dir = os.path.join(args.ckpt_dir, current_time)
+
 # make dir for ckpt
 os.makedirs(args.ckpt_dir, exist_ok=True)
 

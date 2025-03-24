@@ -19,7 +19,7 @@ class Config():
             'COD': ','.join(['CHAMELEON', 'NC4K', 'TE-CAMO', 'TE-COD10K']),
             'HRSOD': ','.join(['DAVIS-S', 'TE-HRSOD', 'TE-UHRSD', 'DUT-OMRON', 'TE-DUTS']),
             # Practical use
-            'fine_tuning': ','.join(['DIS-VD', 'TE-P3M-500-NP']),
+            'fine_tuning': self.data_root_dir+"/fine_tuning",
             'General-2K': ','.join(['DIS-VD', 'TE-P3M-500-NP']),
             'Matting': ','.join(['TE-P3M-500-NP', 'TE-AM-2k']),
         }[self.task]
@@ -53,8 +53,13 @@ class Config():
         self.squeeze_block = ['', 'BasicDecBlk_x1', 'ResBlk_x4', 'ASPP_x3', 'ASPPDeformable_x3'][1]
         self.dec_blk = ['BasicDecBlk', 'ResBlk'][0]
 
-        # TRAINING settings
-        self.batch_size = 2
+        # Try to read batch size from file if it exists
+        try:
+            with open('.config_batch_size', 'r') as f:
+                self.batch_size = int(f.read().strip())
+        except (FileNotFoundError, ValueError):
+            self.batch_size = 4  # Default batch size
+
         self.finetune_last_epochs = [
             0,
             {
@@ -180,18 +185,14 @@ class Config():
 
         self.batch_size_valid = 1
         self.rand_seed = 7
-        run_sh_file = [f for f in os.listdir('.') if 'train.sh' == f] + [os.path.join('..', f) for f in os.listdir('..') if 'train.sh' == f]
+
+        # Read save_last and save_step from train_finetuning.sh
+        run_sh_file = [f for f in os.listdir('.') if 'train_finetuning.sh' == f] + [os.path.join('..', f) for f in os.listdir('..') if 'train_finetuning.sh' == f] #looking for train_finetuning.sh
         if run_sh_file:
             with open(run_sh_file[0], 'r') as f:
                 lines = f.readlines()
-                try:
-                    self.save_last = int([l.strip() for l in lines if "'{}')".format(self.task) in l and 'val_last=' in l][0].split('val_last=')[-1].split()[0])
-                    self.save_step = int([l.strip() for l in lines if "'{}')".format(self.task) in l and 'step=' in l][0].split('step=')[-1].split()[0])
-                except IndexError:
-                    # Default values if patterns aren't found in train.sh
-                    self.save_last = 5 #how many epochs from the end starting saving checkpoints
-                    self.save_step = 1 #how many epochs between saving checkpoints
-                    print(f"Warning: Couldn't find configuration for task '{self.task}' in train.sh. Using default values: save_last={self.save_last}, save_step={self.save_step}")
+                self.save_last = int([l.strip() for l in lines if 'val_last=' in l][0].split('val_last=')[-1].split()[0]) #how many epochs from the end starting saving checkpoints
+                self.save_step = int([l.strip() for l in lines if 'step=' in l][0].split('step=')[-1].split()[0]) #how many epochs between saving checkpoints
 
 
 # Return task for choosing settings in shell scripts.
@@ -202,10 +203,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Only choose one argument to activate.')
     parser.add_argument('--print_task', action='store_true', help='print task name')
     parser.add_argument('--print_testsets', action='store_true', help='print validation set')
+    parser.add_argument('--set_batch_size', type=int, help='set the batch size')
     args = parser.parse_args()
 
     config = Config()
+    # Handle the set_batch_size parameter
+    if hasattr(args, 'set_batch_size') and args.set_batch_size:
+        # Create or modify a config file to store the batch size
+        with open('.config_batch_size', 'w') as f:
+            f.write(str(args.set_batch_size))
+        
+    # Original print functionality
     for arg_name, arg_value in args._get_kwargs():
-        if arg_value:
+        if arg_value and arg_name.startswith('print_'):
             print(config.__getattribute__(arg_name[len('print_'):]))
 
