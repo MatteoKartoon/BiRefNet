@@ -12,10 +12,6 @@ case "${task}" in
     'Matting') epochs=150 && val_last=50 && step=5 ;;
 esac
 
-echo "bla bla bla"
-echo "bla bla bla again"
-echo "bla bla bla again again"
-
 # Train
 devices=$2
 nproc_per_node=$(echo ${devices%%,} | grep -o "," | wc -l)
