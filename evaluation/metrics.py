@@ -459,6 +459,7 @@ class EMeasure(object):
 
 
 class WeightedFMeasure(object):
+    #pixels are weighted by the distance to the object boundary
     def __init__(self, beta: float = 1):
         self.beta = beta
         self.weighted_fms = []
@@ -665,6 +666,7 @@ class HCEMeasure(object):
 
 
 class MBAMeasure(object):
+    #mean boundary accuracy
     def __init__(self):
         self.bas = []
         self.all_h = 0
