@@ -46,6 +46,7 @@ def inference(model, data_loader_test, pred_root, method, testset, device=0):
 def main(args):
     # Init model
 
+    args.ckpt_path=args.ckpt_path.replace('.pth', '')
     device = config.device
     print('Testing with models in {}'.format(args.ckpt_folder))
 
