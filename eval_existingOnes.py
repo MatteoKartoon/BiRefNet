@@ -18,12 +18,12 @@ def do_eval(args):
     filename = os.path.join(args.save_dir, '{}_eval.txt'.format(args.data_lst))
     tb = pt.PrettyTable()
     tb.vertical_char = '&'
-    tb.field_names = ["Training date", "Epoch", "maxFm", "wFmeasure", 'MAE', "Smeasure", "meanEm", "HCE", "maxEm", "meanFm", "adpEm", "adpFm", 'mBA', 'maxBIoU', 'meanBIoU']
+    tb.field_names = ["Training date", "Epoch", "maxFm", "wFmeasure", 'MAE', 'MSE', "Smeasure", "meanEm", "HCE", "maxEm", "meanFm", "adpEm", "adpFm", 'mBA', 'maxBIoU', 'meanBIoU']
         
     for model_name in args.model_lst: #loop over the folder given as input
         #model predictions loading
         pred_data_dir = [os.path.join("e_preds", model_name, file_name) for file_name in os.listdir("e_preds/{}".format(model_name))] #list of the files in the folder e_preds/training_date/training_epoch
-        gt_paths = sorted(glob(os.path.join(args.gt_root, 'gt', '*')))
+        gt_paths = sorted(glob(os.path.join(config.testsets, 'gt', '*')))
         pred_data_dir=sorted(pred_data_dir)
         print(pred_data_dir)
         #model evaluation
@@ -37,14 +37,19 @@ def do_eval(args):
         )
 
         scores = [
-            fm['curve'].max().round(3), wfm.round(3), mae.round(3), sm.round(3), em['curve'].mean().round(3), int(hce.round()), 
+            fm['curve'].max().round(3), wfm.round(3), mae.round(3), mse.round(3), sm.round(3), em['curve'].mean().round(3), int(hce.round()), 
             em['curve'].max().round(3), fm['curve'].mean().round(3), em['adp'].round(3), fm['adp'].round(3),
             mba.round(3), biou['curve'].max().round(3), biou['curve'].mean().round(3),
         ]
 
         for idx_score, score in enumerate(scores):
             scores[idx_score] = '.' + format(score, '.3f').split('.')[-1] if score <= 1  else format(score, '<4')
-        records = model_name.split('/') + scores
+        title = model_name.split('/')
+        print(title)
+        if len(title) > 1:
+            records = title + scores
+        else:
+            records=title+["--"]+scores
         tb.add_row(records)
         # Write results after every check.
         with open(filename, 'w+') as file_to_write:
