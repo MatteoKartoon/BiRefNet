@@ -238,8 +238,6 @@ class Trainer:
 
 
 def main():
-    fill_dataset()
-
     save_to_cpu = True #otherwise we have crashing saving the checkpoint
 
     trainer = Trainer(
