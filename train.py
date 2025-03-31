@@ -46,7 +46,7 @@ if args.use_accelerate:
 config = Config()
 if config.rand_seed:
     set_seed(config.rand_seed)
-
+    
 # DDP
 to_be_distributed = args.dist
 if to_be_distributed:
