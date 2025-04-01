@@ -4,7 +4,7 @@
 export CUDA_VISIBLE_DEVICES=0,1
 
 method="fine_tuning"
-epochs=294
+epochs=254
 val_last=5
 step=1
 batch_size=2

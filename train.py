@@ -101,8 +101,13 @@ def init_data_loaders(to_be_distributed):
         MyData(datasets=config.training_set, image_size=config.size, is_train=True),
         config.batch_size, to_be_distributed=to_be_distributed, is_train=True
     )
+
+    validation_loader = prepare_dataloader(
+        MyData(datasets=config.validation_set, image_size=config.size, is_train=False),
+        config.batch_size, to_be_distributed=to_be_distributed, is_train=False
+    )
     print(len(train_loader), "batches of train dataloader {} have been created.".format(config.training_set))
-    return train_loader
+    return train_loader, validation_loader
 
 
 def init_models_optimizers(epochs, to_be_distributed):
@@ -146,13 +151,41 @@ def init_models_optimizers(epochs, to_be_distributed):
 
     return model, optimizer, lr_scheduler
 
+def validate(trainer, validation_loader):
+    trainer.model.eval()  # Set model to evaluation mode
+    val_loss_log = AverageMeter()  # Track validation loss
+
+    with torch.no_grad():  # No gradient computation for validation
+        for batch in validation_loader:
+            if args.use_accelerate:
+                inputs = batch[0]  # Keep data on default device
+                gts = batch[1]
+                class_labels = batch[2]
+            else:
+                inputs = batch[0].to(device)
+                gts = batch[1].to(device)
+                class_labels = batch[2].to(device)
+
+            # Forward pass
+            scaled_preds, class_preds_lst = trainer.model(inputs)
+
+            # Compute loss
+            loss_pix = trainer.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
+            loss_cls = 0. if None in class_preds_lst else trainer.cls_loss(class_preds_lst, class_labels) * 1.0
+
+            loss = loss_pix + loss_cls
+            val_loss_log.update(loss.item(), inputs.size(0))
+
+    return val_loss_log.avg  # Return average validation loss
+
 
 class Trainer:
     def __init__(
         self, data_loaders, model_opt_lrsch,
     ):
         self.model, self.optimizer, self.lr_scheduler = model_opt_lrsch
-        self.train_loader = data_loaders
+        self.train_loader = data_loaders[0]
+        self.validation_loader = data_loaders[1]
         if args.use_accelerate:
             self.train_loader, self.model, self.optimizer = accelerator.prepare(self.train_loader, self.model, self.optimizer)
         if config.out_ref:
@@ -252,7 +285,6 @@ def main():
         if epoch >= args.epochs - config.save_last and epoch % config.save_step == 0:
             if save_to_cpu:
                 state_dict = {k: v.cpu() for k, v in trainer.model.state_dict().items()}
-            
             # default behavior
             else:
                 if args.use_accelerate:
@@ -261,6 +293,8 @@ def main():
                 else:
                     state_dict = trainer.model.module.state_dict() if to_be_distributed else trainer.model.state_dict()
             torch.save(state_dict, os.path.join(args.ckpt_dir, 'epoch_{}.pth'.format(epoch)))
+            val_loss = validate(trainer, trainer.validation_loader)  # Compute validation loss
+            logger.info(f"Validation Loss: {val_loss:.3f}")
     if to_be_distributed:
         destroy_process_group()
 

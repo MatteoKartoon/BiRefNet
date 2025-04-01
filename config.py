@@ -19,16 +19,17 @@ class Config():
             'COD': ','.join(['CHAMELEON', 'NC4K', 'TE-CAMO', 'TE-COD10K']),
             'HRSOD': ','.join(['DAVIS-S', 'TE-HRSOD', 'TE-UHRSD', 'DUT-OMRON', 'TE-DUTS']),
             # Practical use
-            'fine_tuning': self.data_root_dir+"/fine_tuning/test",
+            'fine_tuning': self.data_root_dir+"/fine_tuning/test_generations_20250318_emotion",
             'General-2K': ','.join(['DIS-VD', 'TE-P3M-500-NP']),
             'Matting': ','.join(['TE-P3M-500-NP', 'TE-AM-2k']),
         }[self.task]
         datasets_all = '+'.join([ds for ds in (os.listdir(os.path.join(self.data_root_dir, self.task)) if os.path.isdir(os.path.join(self.data_root_dir, self.task)) else []) if ds not in self.testsets.split(',')])
+        self.validation_set = self.data_root_dir+"/fine_tuning/validation_generations_20250318_emotion"
         self.training_set = {
             'DIS5K': ['DIS-TR', 'DIS-TR+DIS-TE1+DIS-TE2+DIS-TE3+DIS-TE4'][0],
             'COD': 'TR-COD10K+TR-CAMO',
             'HRSOD': ['TR-DUTS', 'TR-HRSOD', 'TR-UHRSD', 'TR-DUTS+TR-HRSOD', 'TR-DUTS+TR-UHRSD', 'TR-HRSOD+TR-UHRSD', 'TR-DUTS+TR-HRSOD+TR-UHRSD'][5],
-            'fine_tuning': self.data_root_dir+"/fine_tuning/train",
+            'fine_tuning': self.data_root_dir+"/fine_tuning/train_generations_20250318_emotion",
             'General-2K': datasets_all,
             'Matting': datasets_all,
         }[self.task]
