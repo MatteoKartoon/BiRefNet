@@ -158,7 +158,7 @@ def validate(trainer, validation_loader):
     with torch.no_grad():  # No gradient computation for validation
         for batch in validation_loader:
             if args.use_accelerate:
-                inputs = batch[0]  # Keep data on default device
+                inputs = batch[0]  # Data is already on the correct device from accelerator.prepare
                 gts = batch[1]
                 class_labels = batch[2]
             else:
@@ -167,11 +167,15 @@ def validate(trainer, validation_loader):
                 class_labels = batch[2].to(device)
 
             # Forward pass
-            scaled_preds, class_preds_lst = trainer.model(inputs)
+            outputs = trainer.model(inputs)
+            
+            # Handle both training and evaluation modes
+            scaled_preds = outputs
+            class_preds_lst = None
 
             # Compute loss
             loss_pix = trainer.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
-            loss_cls = 0. if None in class_preds_lst else trainer.cls_loss(class_preds_lst, class_labels) * 1.0
+            loss_cls = 0. if class_preds_lst is None else trainer.cls_loss(class_preds_lst, class_labels) * 1.0
 
             loss = loss_pix + loss_cls
             val_loss_log.update(loss.item(), inputs.size(0))
@@ -187,7 +191,9 @@ class Trainer:
         self.train_loader = data_loaders[0]
         self.validation_loader = data_loaders[1]
         if args.use_accelerate:
-            self.train_loader, self.model, self.optimizer = accelerator.prepare(self.train_loader, self.model, self.optimizer)
+            self.train_loader, self.validation_loader, self.model, self.optimizer = accelerator.prepare(
+                self.train_loader, self.validation_loader, self.model, self.optimizer
+            )
         if config.out_ref:
             self.criterion_gdt = nn.BCELoss()
 
@@ -209,6 +215,7 @@ class Trainer:
             class_labels = batch[2].to(device)
         self.optimizer.zero_grad()
         scaled_preds, class_preds_lst = self.model(inputs)
+        
         if config.out_ref:
             (outs_gdt_pred, outs_gdt_label), scaled_preds = scaled_preds
             for _idx, (_gdt_pred, _gdt_label) in enumerate(zip(outs_gdt_pred, outs_gdt_label)):
@@ -222,9 +229,20 @@ class Trainer:
             loss_cls = self.cls_loss(class_preds_lst, class_labels) * 1.0
             self.loss_dict['loss_cls'] = loss_cls.item()
 
+        #scaled_preds = torch.clamp(torch.Tensor(scaled_preds), 0, 1)
+        
         # Loss
-        loss_pix = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
-        self.loss_dict['loss_pix'] = loss_pix.item()
+        try:
+            loss_pix = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
+            self.loss_dict['loss_pix'] = loss_pix.item()
+        except Exception as e:
+            print(e)
+            print(scaled_preds)
+            max_value = max(pred.max().item() for pred in scaled_preds)
+            min_value = min(pred.min().item() for pred in scaled_preds)
+            print(f"Max value of scaled_preds: {max_value}")
+            print(f"Min value of scaled_preds: {min_value}")
+
         # since there may be several losses for sal, the lambdas for them (lambdas_pix) are inside the loss.py
         loss = loss_pix + loss_cls
         if config.out_ref:

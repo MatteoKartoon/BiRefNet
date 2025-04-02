@@ -71,7 +71,7 @@ class Config():
                 'General-2K': -20,
                 'Matting': -20,
             }[self.task]
-        ][1]    # choose 0 to skip
+        ][1]    # choose 0
         self.lr = (1e-4 if 'DIS5K' in self.task else 1e-5) * math.sqrt(self.batch_size / 4)     # DIS needs high lr to converge faster. Adapt the lr linearly
         self.size = (1024, 1024) if self.task not in ['General-2K'] else (2560, 1440)   # wid, hei
         self.dynamic_size = [(0, 0), ((512-256, 2048+256), (512-256, 2048+256))][0]    # wid, hei. It might cause errors in using compile.
