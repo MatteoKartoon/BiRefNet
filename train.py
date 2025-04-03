@@ -151,45 +151,13 @@ def init_models_optimizers(epochs, to_be_distributed):
 
     return model, optimizer, lr_scheduler
 
-def validate(trainer, validation_loader):
-    trainer.model.eval()  # Set model to evaluation mode
-    val_loss_log = AverageMeter()  # Track validation loss
-
-    with torch.no_grad():  # No gradient computation for validation
-        for batch in validation_loader:
-            if args.use_accelerate:
-                inputs = batch[0]  # Data is already on the correct device from accelerator.prepare
-                gts = batch[1]
-                class_labels = batch[2]
-            else:
-                inputs = batch[0].to(device)
-                gts = batch[1].to(device)
-                class_labels = batch[2].to(device)
-
-            # Forward pass
-            outputs = trainer.model(inputs)
-            
-            # Handle both training and evaluation modes
-            scaled_preds = outputs
-            class_preds_lst = None
-
-            # Compute loss
-            loss_pix = trainer.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
-            loss_cls = 0. if class_preds_lst is None else trainer.cls_loss(class_preds_lst, class_labels) * 1.0
-
-            loss = loss_pix + loss_cls
-            val_loss_log.update(loss.item(), inputs.size(0))
-
-    return val_loss_log.avg  # Return average validation loss
-
 
 class Trainer:
     def __init__(
         self, data_loaders, model_opt_lrsch,
     ):
         self.model, self.optimizer, self.lr_scheduler = model_opt_lrsch
-        self.train_loader = data_loaders[0]
-        self.validation_loader = data_loaders[1]
+        self.train_loader,self.validation_loader = data_loaders
         if args.use_accelerate:
             self.train_loader, self.validation_loader, self.model, self.optimizer = accelerator.prepare(
                 self.train_loader, self.validation_loader, self.model, self.optimizer
@@ -203,8 +171,9 @@ class Trainer:
         
         # Others
         self.loss_log = AverageMeter()
+        self.val_loss_log = AverageMeter()
 
-    def _train_batch(self, batch):
+    def _batch(self, batch, batch_idx):
         if args.use_accelerate:
             inputs = batch[0]#.to(device)
             gts = batch[1]#.to(device)
@@ -214,6 +183,14 @@ class Trainer:
             gts = batch[1].to(device)
             class_labels = batch[2].to(device)
         self.optimizer.zero_grad()
+
+        if batch_idx == 0: #trying to understand what is the difference of behaviour between validation and trning
+            #from the prints it seems that training and validation datas are loaded in different ways...
+
+            #print(inputs.shape)
+            #print(gts.shape)
+            print("Found class labels..." + str(class_labels))
+            #print(self.model(inputs))
         scaled_preds, class_preds_lst = self.model(inputs)
         
         if config.out_ref:
@@ -256,6 +233,37 @@ class Trainer:
             loss.backward()
         self.optimizer.step()
 
+    """def validate(self, validation_loader):
+        self.model.eval()  # Set model to evaluation mode
+        val_loss_log = AverageMeter()  # Track validation loss
+
+        with torch.no_grad():  # No gradient computation for validation
+            for batch in validation_loader:
+                if args.use_accelerate:
+                    inputs = batch[0]  # Data is already on the correct device from accelerator.prepare
+                    gts = batch[1]
+                    class_labels = batch[2]
+                else:
+                    inputs = batch[0].to(device)
+                    gts = batch[1].to(device)
+                    class_labels = batch[2].to(device)
+
+                # Forward pass
+                outputs = trainer.model(inputs)
+                
+                # Handle both training and evaluation modes
+                scaled_preds = outputs
+                class_preds_lst = None
+
+                # Compute loss
+                loss_pix = trainer.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
+                loss_cls = 0. if class_preds_lst is None else trainer.cls_loss(class_preds_lst, class_labels) * 1.0
+
+                loss = loss_pix + loss_cls
+                val_loss_log.update(loss.item(), inputs.size(0))
+
+        return val_loss_log.avg  # Return average validation loss  """
+    
     def train_epoch(self, epoch):
         global logger_loss_idx
         self.model.train()
@@ -271,9 +279,10 @@ class Trainer:
                 self.pix_loss.lambdas_pix_last['iou'] *= 0.5
                 self.pix_loss.lambdas_pix_last['mae'] *= 0.9
 
+        #Loop over the training batches
         for batch_idx, batch in enumerate(self.train_loader):
             # with nullcontext if not args.use_accelerate or accelerator.gradient_accumulation_steps <= 1 else accelerator.accumulate(self.model):
-            self._train_batch(batch)
+            self._batch(batch, batch_idx)
             # Logger
             if batch_idx % 20 == 0:
                 info_progress = 'Epoch[{0}/{1}] Iter[{2}/{3}].'.format(epoch, args.epochs, batch_idx, len(self.train_loader))
@@ -283,9 +292,24 @@ class Trainer:
                 logger.info(' '.join((info_progress, info_loss)))
         info_loss = '@==Final== Epoch[{0}/{1}]  Training Loss: {loss.avg:.3f}  '.format(epoch, args.epochs, loss=self.loss_log)
         logger.info(info_loss)
-
         self.lr_scheduler.step()
-        return self.loss_log.avg
+
+        self.model.eval()
+        self.loss_dict = {}
+        #Loop over the validation batches
+        for batch_idx, batch in enumerate(self.validation_loader):
+            self._batch(batch, batch_idx)
+            # Logger
+            if batch_idx % 20 == 0:
+                info_progress = 'Epoch[{0}/{1}] Iter[{2}/{3}].'.format(epoch, args.epochs, batch_idx, len(self.validation_loader))
+                info_loss = 'Validation Losses'
+                for loss_name, loss_value in self.loss_dict.items():
+                    info_loss += ', {}: {:.3f}'.format(loss_name, loss_value)
+                logger.info(' '.join((info_progress, info_loss)))
+        info_loss = '@==Final== Epoch[{0}/{1}]  Validation Loss: {loss.avg:.3f}  '.format(epoch, args.epochs, loss=self.val_loss_log)
+        logger.info(info_loss)
+
+        return self.loss_log.avg, self.val_loss_log.avg
 
 
 def main():
@@ -297,7 +321,7 @@ def main():
     )
 
     for epoch in range(epoch_st, args.epochs+1):
-        train_loss = trainer.train_epoch(epoch)
+        train_loss, val_loss = trainer.train_epoch(epoch)
         # Save checkpoint
         # DDP
         if epoch >= args.epochs - config.save_last and epoch % config.save_step == 0:
@@ -311,8 +335,6 @@ def main():
                 else:
                     state_dict = trainer.model.module.state_dict() if to_be_distributed else trainer.model.state_dict()
             torch.save(state_dict, os.path.join(args.ckpt_dir, 'epoch_{}.pth'.format(epoch)))
-            val_loss = validate(trainer, trainer.validation_loader)  # Compute validation loss
-            logger.info(f"Validation Loss: {val_loss:.3f}")
     if to_be_distributed:
         destroy_process_group()
 
