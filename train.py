@@ -173,7 +173,7 @@ class Trainer:
         self.loss_log = AverageMeter()
         self.val_loss_log = AverageMeter()
 
-    def _batch(self, batch, batch_idx):
+    def _batch(self, batch, training):
         if args.use_accelerate:
             inputs = batch[0]#.to(device)
             gts = batch[1]#.to(device)
@@ -184,29 +184,26 @@ class Trainer:
             class_labels = batch[2].to(device)
         self.optimizer.zero_grad()
 
-        if batch_idx == 0: #trying to understand what is the difference of behaviour between validation and trning
-            #from the prints it seems that training and validation datas are loaded in different ways...
-
-            #print(inputs.shape)
-            #print(gts.shape)
-            print("Found class labels..." + str(class_labels))
-            #print(self.model(inputs))
-        scaled_preds, class_preds_lst = self.model(inputs)
+        if training:
+            model_output = self.model(inputs)
+            scaled_preds, class_preds_lst = model_output
+        else:
+            scaled_preds = self.model(inputs)
+            class_preds_lst = None
         
-        if config.out_ref:
+        if config.out_ref and training:
+            # Only unpack if in training mode and out_ref is enabled
             (outs_gdt_pred, outs_gdt_label), scaled_preds = scaled_preds
             for _idx, (_gdt_pred, _gdt_label) in enumerate(zip(outs_gdt_pred, outs_gdt_label)):
                 _gdt_pred = nn.functional.interpolate(_gdt_pred, size=_gdt_label.shape[2:], mode='bilinear', align_corners=True).sigmoid()
                 _gdt_label = _gdt_label.sigmoid()
                 loss_gdt = self.criterion_gdt(_gdt_pred, _gdt_label) if _idx == 0 else self.criterion_gdt(_gdt_pred, _gdt_label) + loss_gdt
             # self.loss_dict['loss_gdt'] = loss_gdt.item()
-        if None in class_preds_lst:
+        if None in class_preds_lst if class_preds_lst else True:
             loss_cls = 0.
         else:
             loss_cls = self.cls_loss(class_preds_lst, class_labels) * 1.0
             self.loss_dict['loss_cls'] = loss_cls.item()
-
-        #scaled_preds = torch.clamp(torch.Tensor(scaled_preds), 0, 1)
         
         # Loss
         try:
@@ -222,16 +219,18 @@ class Trainer:
 
         # since there may be several losses for sal, the lambdas for them (lambdas_pix) are inside the loss.py
         loss = loss_pix + loss_cls
-        if config.out_ref:
+        if config.out_ref and training:
             loss = loss + loss_gdt * 1.0
 
         self.loss_log.update(loss.item(), inputs.size(0))
-        if args.use_accelerate:
-            loss = loss / accelerator.gradient_accumulation_steps
-            accelerator.backward(loss)
-        else:
-            loss.backward()
-        self.optimizer.step()
+
+        if training:
+            if args.use_accelerate:
+                loss = loss / accelerator.gradient_accumulation_steps
+                accelerator.backward(loss)
+            else:
+                loss.backward()
+            self.optimizer.step()
 
     """def validate(self, validation_loader):
         self.model.eval()  # Set model to evaluation mode
@@ -282,7 +281,7 @@ class Trainer:
         #Loop over the training batches
         for batch_idx, batch in enumerate(self.train_loader):
             # with nullcontext if not args.use_accelerate or accelerator.gradient_accumulation_steps <= 1 else accelerator.accumulate(self.model):
-            self._batch(batch, batch_idx)
+            self._batch(batch, True)
             # Logger
             if batch_idx % 20 == 0:
                 info_progress = 'Epoch[{0}/{1}] Iter[{2}/{3}].'.format(epoch, args.epochs, batch_idx, len(self.train_loader))
@@ -298,7 +297,7 @@ class Trainer:
         self.loss_dict = {}
         #Loop over the validation batches
         for batch_idx, batch in enumerate(self.validation_loader):
-            self._batch(batch, batch_idx)
+            self._batch(batch, False)
             # Logger
             if batch_idx % 20 == 0:
                 info_progress = 'Epoch[{0}/{1}] Iter[{2}/{3}].'.format(epoch, args.epochs, batch_idx, len(self.validation_loader))

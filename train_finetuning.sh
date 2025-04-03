@@ -4,9 +4,9 @@
 export CUDA_VISIBLE_DEVICES=0,1
 
 method="fine_tuning"
-epochs=254
+epochs=294
 val_last=10
-step=1
+step=2
 batch_size=2
 
 task=$(python3 config.py --print_task)
