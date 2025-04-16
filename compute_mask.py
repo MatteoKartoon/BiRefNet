@@ -3,7 +3,7 @@ import argparse
 from PIL import Image
 import numpy as np
 
-def compute_gt(image_path):
+def compute_mask(image_path):
     # Open the image
     img = Image.open(image_path)
     
@@ -28,11 +28,10 @@ def process_images(input_folder, output_folder):
             input_path = os.path.join(input_folder, filename)
             output_path = os.path.join(output_folder, filename)
 
-            image = Image.open(input_path)
-            alpha_mask = compute_gt(input_path)
+            mask = compute_mask(input_path)
 
             # Save the alpha mask
-            alpha_mask.save(output_path)
+            mask.save(output_path)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Compute alpha channel masks for images.')

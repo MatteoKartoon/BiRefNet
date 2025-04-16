@@ -7,6 +7,7 @@ import prettytable as pt
 import matplotlib
 import random
 import copy
+import cv2
 
 matplotlib.use('Agg')
 
@@ -32,6 +33,87 @@ def pt_green_bg(original, mask):
 
     return result_img
 
+
+def pt_red_pixels(gt: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """
+    Creates a visualization image highlighting differences between ground truth and mask.
+    
+    Args:
+        gt (np.ndarray): Ground truth image as a numpy array (grayscale)
+        mask (np.ndarray): Predicted mask as a numpy array (grayscale)
+        
+    Returns:
+        Image.Image: RGBA image where:
+            - Red channel shows large differences (>10) between gt and mask
+            - Grayscale shows small differences (≤10) using mask values
+            
+    Note:
+        The function expects grayscale images (2D arrays) and returns an RGBA image (3D array)
+    """
+    # Ensure input images have the same dimensions
+    assert gt.size == mask.size
+
+    # Create output array with shape (height, width, 3) for RGB
+    output = np.zeros((*gt.shape, 3), dtype=np.uint8)
+    
+    # Calculate absolute pixel-wise differences between ground truth and mask
+    diff = np.abs(gt.astype(np.int16) - mask.astype(np.int16))
+    
+    # Create boolean mask for pixels where difference exceeds threshold
+    large_diff_mask = diff > 10
+    
+    # For large differences: set red channel to difference value
+    # This creates red highlights where predictions differ significantly
+    output[large_diff_mask, 0] = 255
+    
+    # For small differences: set all RGB channels to mask value
+    # This creates grayscale areas where predictions match well
+    output[~large_diff_mask, 0] = mask[~large_diff_mask]  # R
+    output[~large_diff_mask, 1] = mask[~large_diff_mask]  # G
+    output[~large_diff_mask, 2] = mask[~large_diff_mask]  # B
+
+    #check why there are some pixels that are not red or gray scale
+    #SOLVED:Even if your pixel values are precisely red [255, 0, 0] or grayscale [x, x, x], Image.fromarray might internally perform slight interpolation or color space interpretation when you resize, save, or display the image — especially on screens that auto-apply gamma correction.
+    #c=0
+    #for i in range(output.shape[0]):
+    #    for j in range(output.shape[1]):
+    #        if not ((output[i, j, 0] == 255) & (output[i, j, 1] == 0) & (output[i, j, 2] == 0)) and not ((output[i, j, 0] == output[i, j, 1]) & (output[i, j, 0] == output[i, j, 2])):
+    #            c+=1
+    #print(f"Number of pixels that are not red or gray scale: {c}")
+    #print(output.shape)
+    
+    return output
+
+
+def erode_red(image: np.ndarray) -> np.ndarray:
+    """
+    Erode the red channel of the image, and color in green the eroded pixels
+    """
+    kernel = np.ones((5, 5), np.uint8)
+
+    # Create a matrix where for each pixel get 1 if it is a red pixel in image and 0 if it is a grayscale pixel
+    red_pixel_matrix = np.zeros((image.shape[0], image.shape[1]), dtype=np.uint8)
+    
+    # Red pixels have a high value in the red channel and low values in the green and blue channels
+    red_pixel_mask = (image[:, :, 0] == 255) & (image[:, :, 1] == 0) & (image[:, :, 2] == 0)
+    
+    # Set a matrix with only red pixels
+    red_pixel_matrix[red_pixel_mask] = 1
+
+    # Erode the red pixels
+    eroded_image = cv2.erode(red_pixel_matrix, kernel, iterations=1)
+
+    # Get the green pixels that have been eroded
+    green_pixel_mask = red_pixel_matrix != eroded_image
+
+    #Final image with not eroded red pixels, and eroded green pixels
+    final_image=image.copy()
+    final_image[green_pixel_mask, 0] = 0
+    final_image[green_pixel_mask, 1] = 255
+
+    return final_image
+
+
 def compute_interest(scoresss, metrics,many):
     #Compute an interesting rate for each image based on the difference between the max and min score of the metrics
     print(f"Computing the most interesting {many} images based on metrics: {metrics}...")
@@ -50,15 +132,13 @@ def compute_interest(scoresss, metrics,many):
     #Return the indexes of the most interesting images
     return interest_indexes
 
+
 def do_visualization(model_paths):
     #function to visualize the results of the models with the scores
-    dm=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE']
+    dm=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE','PA']
     #Create a list of the ground truth and image paths
-    #gt_paths = sorted(glob(os.path.join(config.testsets, 'gt', '*')))
-    #image_paths = sorted(glob(os.path.join(config.testsets, 'im', '*')))
-    to_delete=config.testsets.replace("test","train")
-    gt_paths = sorted(glob(os.path.join(to_delete, 'gt', '*')))
-    image_paths = sorted(glob(os.path.join(to_delete, 'im', '*')))
+    gt_paths = sorted(glob(os.path.join(config.testsets, 'gt', '*')))
+    image_paths = sorted(glob(os.path.join(config.testsets, 'im', '*')))
     #Loop through all the models
     for model_path in model_paths:
         print("Visualizing model results: ", model_path)
@@ -78,10 +158,10 @@ def do_visualization(model_paths):
         for r in rs:
             z.append(zs[r])
         # Evaluate model predictions against ground truth
-        for i, (pred_path, gt_path, image_path) in enumerate(zip(pred_data_dir, gt_paths, image_paths)):
+        for i, (pred_path, gt_path, image_path) in enumerate(z):
             print('\t', 'Evaluating prediction: {} against ground truth: {}'.format(pred_path, gt_path))
             #Evaluate the model predictions against the ground truth
-            em, sm, fm, mae, mse, wfm, hce, mba, biou = evaluator(
+            em, sm, fm, mae, mse, wfm, hce, mba, biou, pa = evaluator(
                 gt_paths=[gt_path],
                 pred_paths=[pred_path],
                 metrics=dm,
@@ -91,7 +171,7 @@ def do_visualization(model_paths):
             scores = [
                     fm['curve'].max().round(3), wfm.round(3), mae.round(3), sm.round(3), em['curve'].mean().round(3), int(hce.round()), 
                     em['curve'].max().round(3), fm['curve'].mean().round(3), em['adp'].round(3), fm['adp'].round(3),
-                    mba.round(3), biou['curve'].max().round(3),mse.round(3), biou['curve'].mean().round(3),
+                    mba.round(3), biou['curve'].max().round(3),mse.round(3), biou['curve'].mean().round(3), pa.round(3)
             ]
             print(scores)
             #Display
@@ -100,22 +180,23 @@ def do_visualization(model_paths):
             plt.axis('off')
             plt.title('Original')
 
-            plt.subplot(lun, 6, 6*i+2)
+            plt.subplot(lun, 6, 6*i+3)
             plt.imshow(pt_green_bg(image_path, pred_path))
             plt.axis('off')
             plt.title('Model prediction')
 
-            plt.subplot(lun, 6, 6*i+3)
+            plt.subplot(lun, 6, 6*i+2)
             plt.imshow(pt_green_bg(image_path, gt_path))
             plt.axis('off')
             plt.title('Ground truth')
             
-            plt.subplot(lun, 6, 6*i+4)
+            plt.subplot(lun, 6, 6*i+5)
+            #plt.imshow(pt_red_pixels(cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE), cv2.imread(pred_path, cv2.IMREAD_GRAYSCALE)))
             plt.imshow(Image.open(pred_path))
             plt.axis('off')
             plt.title('Model prediction mask')
 
-            plt.subplot(lun, 6, 6*i+5)
+            plt.subplot(lun, 6, 6*i+4)
             plt.imshow(Image.open(gt_path))
             plt.axis('off')
             plt.title('Ground truth mask')
@@ -124,7 +205,7 @@ def do_visualization(model_paths):
             plt.axis('off')
             plt.text(0.5, 0.5, f"maxFm: {scores[0]}\nwFmeasure: {scores[1]}\nMAE: {scores[2]}\nSmeasure: {scores[3]}\n"
                     f"meanEm: {scores[4]}\nHCE: {scores[5]}\nmaxEm: {scores[6]}\nmeanFm: {scores[7]}\n"
-                    f"adpEm: {scores[8]}\nadpFm: {scores[9]}\nmBA: {scores[10]}\nmaxBIoU: {scores[11]}\nMSE: {scores[12]}\nmeanBIoU: {scores[13]}",
+                    f"adpEm: {scores[8]}\nadpFm: {scores[9]}\nmBA: {scores[10]}\nmaxBIoU: {scores[11]}\nMSE: {scores[12]}\nmeanBIoU: {scores[13]}\npixAcc: {scores[14]}",
                     ha='center', va='center', transform=plt.gca().transAxes, fontsize=16)
 
         plt.tight_layout()
@@ -140,30 +221,28 @@ def do_visualization(model_paths):
             print("Could not display plot interactively")
         
         plt.close()
-
     
 
 def do_ranking(model_paths, metrics):
     #function to help ranking the models based on the metrics
-    inds=[3,2,4,7,1,10,-1,-2,5] #List of metrics indices to pick the correct score from the scores tensor
-    dm=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE']
+    inds=[3,2,4,7,1,10,-2,-3,5,-1] #List of metrics indices to pick the correct score from the scores tensor
+    dm=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE','PA']
     metr_sel_ind=[]
     for m in metrics:
         metr_sel_ind.append(inds[dm.index(m)])
-    print("Ranking models", model_paths, "based on metrics: ", metrics, "(with indices: ", metr_sel_ind, ")...")
+    print("Ranking models", model_paths, "based on metrics: ", metrics, "...")
     #find the paths of original images, ground truth and model predictions
     pred_data_dir = []
     for i, model_path in enumerate(model_paths):
         pred_data_dir.append(sorted([os.path.join("e_preds", model_path, file_name) for file_name in os.listdir("e_preds/{}".format(model_path))]))
-    to_delete=config.testsets.replace("test","train")
-    gt_paths = sorted(glob(os.path.join(to_delete, 'gt', '*')))
-    image_paths = sorted(glob(os.path.join(to_delete, 'im', '*')))
+    gt_paths = sorted(glob(os.path.join(config.testsets, 'gt', '*')))
+    image_paths = sorted(glob(os.path.join(config.testsets, 'im', '*')))
     print(config.testsets)
     #initialize the figure
     lun = min(10,len(gt_paths)) #minimum between 10 and the number of testing images
     lar = len(model_paths)+2
-    for m in metrics:
-        plt.figure(m,figsize=(5*lar, 6*lun))
+
+    plt.figure(m,figsize=(5*lar, 6*lun))
     
     zs=list(zip(np.transpose(pred_data_dir), gt_paths, image_paths))
     scoresss=[]
@@ -174,7 +253,7 @@ def do_ranking(model_paths, metrics):
         scoress=[]
         for mod_ind in range(len(p)):
             # Evaluate model predictions against ground truth
-            em, sm, fm, mae, mse, wfm, hce, mba, biou = evaluator(
+            em, sm, fm, mae, mse, wfm, hce, mba, biou, pa = evaluator(
                 gt_paths=[g],
                 pred_paths=[p[mod_ind]],
                 metrics=dm,
@@ -184,7 +263,7 @@ def do_ranking(model_paths, metrics):
             scores = [
                     fm['curve'].max().round(3), wfm.round(3), mae.round(3), sm.round(3), em['curve'].mean().round(3), int(hce.round()), 
                     em['curve'].max().round(3), fm['curve'].mean().round(3), em['adp'].round(3), fm['adp'].round(3),
-                    mba.round(3), biou['curve'].max().round(3),mse.round(3), biou['curve'].mean().round(3),
+                    mba.round(3), biou['curve'].max().round(3),mse.round(3), biou['curve'].mean().round(3), pa.round(3)
                     ]
             scoress.append(scores)
         scoresss.append(scoress) #tensor containing the scores of all the images for all the models and metrics
@@ -206,7 +285,7 @@ def do_ranking(model_paths, metrics):
             image_pred.append(Image.open(p[mod_ind]))
         for metric in metrics:
             # Display
-            plt.figure(metric)
+            plt.figure(metric, figsize=(5*lar, 6*lun))
             plt.subplot(lun, lar, lar*im_ind+1)
             plt.imshow(image)
             plt.axis('off')
@@ -219,11 +298,18 @@ def do_ranking(model_paths, metrics):
 
             for i in range(len(p)):
                 plt.subplot(lun, lar, lar*im_ind+3+i)
-                plt.imshow(image_pred[i])
+
+                # Read and resize images
+                gt_img = cv2.imread(g, cv2.IMREAD_GRAYSCALE)
+                pred_img = cv2.imread(p[i], cv2.IMREAD_GRAYSCALE)
+                
+                if metric!='PA':
+                    plt.imshow(Image.fromarray(pt_red_pixels(gt_img, pred_img)))
+                else:
+                    plt.imshow(Image.fromarray(erode_red(pt_red_pixels(gt_img, pred_img))))
                 plt.axis('off')
                 vet=p[i].split("/")[1:-1]
                 tit=" ".join(v for v in vet)
-
                 #Pick the correct score from the scores tensor
                 score=scoresss[rs[im_ind]][i][inds[dm.index(metric)]]
                 #Display the score
@@ -243,7 +329,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run visualization or ranking based on the provided parameters.')
     parser.add_argument('--models', type=str, required=True, help='Path to the models')
     parser.add_argument('--metrics', type=str, help='Metrics to be used',
-                        default=','.join(['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE']))
+                        default=','.join(['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE','PA']))
 
     # Parse the arguments
     args = parser.parse_args()

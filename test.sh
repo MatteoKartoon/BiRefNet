@@ -1,8 +1,9 @@
 devices="0,1"
-ckpt_path=$1 # e.g. 20250324__1450/epoch_294.pth
+ckpt_path="20250407__1120/epoch_294.pth"
+testsets="test_generations_20250326_pose"
 
 # Inference
 
-CUDA_VISIBLE_DEVICES=${devices} python inference.py --ckpt_path ${ckpt_path}
+CUDA_VISIBLE_DEVICES=${devices} python inference.py --ckpt_path ${ckpt_path} --testsets ${testsets}
 
 echo Inference finished at $(date)

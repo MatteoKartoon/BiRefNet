@@ -19,7 +19,13 @@ def inference(model, data_loader_test, pred_root, method, testset, device=0):
     if model_training:
         model.eval()
     model.half()
-    print(f"Saving prediction in {os.path.join(pred_root, args.ckpt_path)}...")
+
+    #get epoch from ckpt path name
+    epoch = args.ckpt_path.split('_')[-1].split('.')[0]
+    #create the directory to save the predictions
+    saving_dir=os.path.join(pred_root,args.ckpt_path.split("/")[0]+"__epoch"+epoch,testset)
+    print(f"Saving prediction in {saving_dir}...")
+
     for batch in tqdm(data_loader_test, total=len(data_loader_test)) if 1 or config.verbose_eval else data_loader_test:
         inputs = batch[0].to(device).half()
         # gts = batch[1].to(device)
@@ -27,7 +33,8 @@ def inference(model, data_loader_test, pred_root, method, testset, device=0):
         with torch.no_grad():
             scaled_preds = model(inputs)[-1].sigmoid()
 
-        os.makedirs(os.path.join(pred_root, args.ckpt_path), exist_ok=True)
+        #create the directory to save the predictions
+        os.makedirs(saving_dir, exist_ok=True)
 
         for idx_sample in range(scaled_preds.shape[0]):
             res = torch.nn.functional.interpolate(
@@ -36,7 +43,8 @@ def inference(model, data_loader_test, pred_root, method, testset, device=0):
                 mode='bilinear',
                 align_corners=True
             )
-            where=os.path.join(os.path.join(pred_root, args.ckpt_path), label_paths[idx_sample].replace('\\', '/').split('/')[-1]) # test set dir + file name
+            #prediction image path
+            where=os.path.join(saving_dir, label_paths[idx_sample].replace('\\', '/').split('/')[-1]) # test set dir + file name
             save_tensor_img(res, where)
     if model_training:
         model.train()
@@ -45,22 +53,16 @@ def inference(model, data_loader_test, pred_root, method, testset, device=0):
 
 def main(args):
     # Init model
-    args.ckpt_path=args.ckpt_path.replace('.pth', '')
+    weights = os.path.join(args.ckpt_folder, args.ckpt_path)
     device = config.device
-    print('Testing with models in {}'.format(args.ckpt_folder))
-
-
-    if config.model == 'BiRefNet':
-        model = BiRefNet(bb_pretrained=False)
-    elif config.model == 'BiRefNetC2F':
-        model = BiRefNetC2F(bb_pretrained=False)
-
-    weights = os.path.join(args.ckpt_folder, args.ckpt_path+".pth")
-
+    model = BiRefNet(bb_pretrained=False)
+        
+    #start testing
     for testset in args.testsets.split('+'):
-        print('>>>> Testset: {}...'.format(testset))
+        testset_pth=os.path.join(config.data_root_dir,"fine_tuning",testset)
+        print('>>>> Testset: {}'.format(testset_pth))
         data_loader_test = torch.utils.data.DataLoader(
-            dataset=MyData(testset, image_size=config.size, is_train=False),
+            dataset=MyData(testset_pth, image_size=config.size, is_train=False),
             batch_size=config.batch_size_valid, shuffle=False, num_workers=config.num_workers, pin_memory=True
         )
         
@@ -83,10 +85,7 @@ if __name__ == '__main__':
     parser.add_argument('--ckpt_folder', default="ckpt/fine_tuning", type=str, help='model folder')
     parser.add_argument('--ckpt_path', type=str, help='which checkpoint to use')
     parser.add_argument('--pred_root', default='e_preds', type=str, help='Output folder')
-    parser.add_argument('--testsets',
-                        default=config.testsets.replace(',', '+'),
-                        type=str,
-                        help="Test all sets: DIS5K -> 'DIS-VD+DIS-TE1+DIS-TE2+DIS-TE3+DIS-TE4'")
+    parser.add_argument('--testsets',type=str,help="which test set do inference on")
 
     args = parser.parse_args()
 

@@ -13,26 +13,10 @@ class Config():
 
         # TASK settings
         self.task = ['DIS5K', 'COD', 'HRSOD', 'fine_tuning', 'General-2K', 'Matting'][3]
-        self.testsets = {
-            # Benchmarks
-            'DIS5K': ','.join(['DIS-VD', 'DIS-TE1', 'DIS-TE2', 'DIS-TE3', 'DIS-TE4'][:1]),
-            'COD': ','.join(['CHAMELEON', 'NC4K', 'TE-CAMO', 'TE-COD10K']),
-            'HRSOD': ','.join(['DAVIS-S', 'TE-HRSOD', 'TE-UHRSD', 'DUT-OMRON', 'TE-DUTS']),
-            # Practical use
-            'fine_tuning': self.data_root_dir+"/fine_tuning/test_generations_20250318_emotion",
-            'General-2K': ','.join(['DIS-VD', 'TE-P3M-500-NP']),
-            'Matting': ','.join(['TE-P3M-500-NP', 'TE-AM-2k']),
-        }[self.task]
-        datasets_all = '+'.join([ds for ds in (os.listdir(os.path.join(self.data_root_dir, self.task)) if os.path.isdir(os.path.join(self.data_root_dir, self.task)) else []) if ds not in self.testsets.split(',')])
+        
         self.validation_set = self.data_root_dir+"/fine_tuning/validation_generations_20250318_emotion"
-        self.training_set = {
-            'DIS5K': ['DIS-TR', 'DIS-TR+DIS-TE1+DIS-TE2+DIS-TE3+DIS-TE4'][0],
-            'COD': 'TR-COD10K+TR-CAMO',
-            'HRSOD': ['TR-DUTS', 'TR-HRSOD', 'TR-UHRSD', 'TR-DUTS+TR-HRSOD', 'TR-DUTS+TR-UHRSD', 'TR-HRSOD+TR-UHRSD', 'TR-DUTS+TR-HRSOD+TR-UHRSD'][5],
-            'fine_tuning': self.data_root_dir+"/fine_tuning/train_generations_20250318_emotion",
-            'General-2K': datasets_all,
-            'Matting': datasets_all,
-        }[self.task]
+        self.training_set = self.data_root_dir+"/fine_tuning/train_generations_20250318_emotion"
+  
         self.prompt4loc = ['dense', 'sparse'][0]
 
         # Faster-Training settings
@@ -53,13 +37,8 @@ class Config():
         self.dec_att = ['', 'ASPP', 'ASPPDeformable'][2]
         self.squeeze_block = ['', 'BasicDecBlk_x1', 'ResBlk_x4', 'ASPP_x3', 'ASPPDeformable_x3'][1]
         self.dec_blk = ['BasicDecBlk', 'ResBlk'][0]
-
-        # Try to read batch size from file if it exists
-        try:
-            with open('.config_batch_size', 'r') as f:
-                self.batch_size = int(f.read().strip())
-        except (FileNotFoundError, ValueError):
-            self.batch_size = 4  # Default batch size
+        self.batch_size = 2
+        
 
         self.finetune_last_epochs = [
             0,
@@ -208,13 +187,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     config = Config()
-    # Handle the set_batch_size parameter
-    if hasattr(args, 'set_batch_size') and args.set_batch_size:
-        # Create or modify a config file to store the batch size
-        with open('.config_batch_size', 'w') as f:
-            f.write(str(args.set_batch_size))
         
-    # Original print functionality
+    # Prints some information if requested using the --print flags
     for arg_name, arg_value in args._get_kwargs():
         if arg_value and arg_name.startswith('print_'):
             print(config.__getattribute__(arg_name[len('print_'):]))

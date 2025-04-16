@@ -13,7 +13,7 @@ _EPS = np.spacing(1)
 _TYPE = np.float64
 
 
-def evaluator(gt_paths, pred_paths, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE'], verbose=False):
+def evaluator(gt_paths, pred_paths, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE','PA'], verbose=False):
     # define measures
     if 'E' in metrics:
         EM = EMeasure()
@@ -33,6 +33,8 @@ def evaluator(gt_paths, pred_paths, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 
         MBA = MBAMeasure()
     if 'BIoU' in metrics:
         BIoU = BIoUMeasure()
+    if 'PA' in metrics:
+        PA = PixelAccuracy()
 
     if isinstance(gt_paths, list) and isinstance(pred_paths, list):
         # print(len(gt_paths), len(pred_paths))
@@ -87,6 +89,8 @@ def evaluator(gt_paths, pred_paths, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 
             MBA.step(pred=pred_ary, gt=gt_ary)
         if 'BIoU' in metrics:
             BIoU.step(pred=pred_ary, gt=gt_ary)
+        if 'PA' in metrics:
+            PA.step(pred=pred_ary, gt=gt_ary)
 
     if 'E' in metrics:
         em = EM.get_results()['em']
@@ -124,15 +128,20 @@ def evaluator(gt_paths, pred_paths, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 
         biou = BIoU.get_results()['biou']
     else:
         biou = {'curve': np.array([np.float64(-1)])}
+    if 'PA' in metrics:
+        pa = PA.get_results()['pa']
+    else:
+        pa = np.float64(-1)
 
-    return em, sm, fm, mae, mse, wfm, hce, mba, biou
+    return em, sm, fm, mae, mse, wfm, hce, mba, biou, pa
 
 
 def _prepare_data(pred: np.ndarray, gt: np.ndarray) -> tuple:
+    #We must binarize the gt before using it in the metrics but in the future we should avoid this
     gt = gt > 128
     pred = pred / 255
-    if pred.max() != pred.min():
-        pred = (pred - pred.min()) / (pred.max() - pred.min())
+    #if pred.max() != pred.min():
+    #    pred = (pred - pred.min()) / (pred.max() - pred.min())
     return pred, gt
 
 
@@ -215,6 +224,80 @@ class MAEMeasure(object):
     def get_results(self) -> dict:
         mae = np.mean(np.array(self.maes, _TYPE))
         return dict(mae=mae)
+
+class PixelAccuracy(object):
+    def __init__(self):
+        self.pixel_accuracies = []
+
+    def step(self, pred: np.ndarray, gt: np.ndarray):
+        #pred, gt = _prepare_data(pred, gt)
+        pixel_accuracy = self.cal_pixel_accuracy(pred, gt, threshold=10)
+        self.pixel_accuracies.append(pixel_accuracy)
+
+    #def check_square(self, image: np.ndarray) -> np.ndarray:
+        #check if the incorrect pixels are in a square of incorrect pixels
+        #new_image = np.copy(image)
+        #rows, cols = image.shape
+
+        #for i in range(rows):
+        #    for j in range(cols):
+        #        if image[i, j]:  # If the pixel is correct, continue
+        #            new_image[i, j] = True
+        #        else:
+                    # Check if the pixel is part of a 5x5 incorrect pixel square
+                    #is_square = False
+                    #for k in range(-4, 5):
+                    #    for l in range(-4, 5):
+                    #        if (0 <= i + k < rows - 4) and (0 <= j + l < cols - 4):
+                                # Check the 5x5 block
+        #                        block = image[i + k:i + k + 5, j + l:j + l + 5]
+        #                        if np.all(~block):
+        #                            is_square = True
+        #                            break
+        #                if is_square:
+        #                    break
+
+                    # Set the pixel in the new image based on the square check
+        #            new_image[i, j] = not is_square  # Incorrect if I found a sqaure of incorrect pixels
+        #return new_image
+
+    def cal_pixel_accuracy(self, image1: np.ndarray, image2: np.ndarray, threshold: float) -> float:
+        """
+        Calculate the percentage of correct pixels between two one-channel images based on a threshold.
+
+        :param image1: First one-channel image as a numpy array.
+        :param image2: Second one-channel image as a numpy array.
+        :param threshold: Threshold value to classify pixels as correct or wrong.
+        :return: Percentage of correct pixels.
+        """
+        if image1.shape != image2.shape:
+            raise ValueError("Both images must have the same dimensions")
+
+        # Calculate the absolute difference between the two images
+        difference = np.abs(image1.astype(np.int16) - image2.astype(np.int16))
+
+        # Classify pixels as correct or wrong based on the threshold
+        correct_pixels = difference <= threshold
+
+        #do erhosion to the incorrect pixels
+        kernel = np.ones((5, 5), np.uint8)
+        incorrect_pixels = ~correct_pixels
+        eroded_pixels = cv2.erode(incorrect_pixels.astype(np.uint8), kernel, iterations=1)
+        incorrect_pixels_new = eroded_pixels.astype(bool)
+
+
+
+        #find the number of white pixels in the ground truth image
+        white_pixels = image2>127
+
+        # Calculate the percentage of correct pixels
+        correct_pixel_score = 1 - (np.sum(incorrect_pixels_new) / np.sum(white_pixels))
+
+        return (correct_pixel_score)**2
+
+    def get_results(self) -> dict:
+        pixel_accuracy = np.mean(np.array(self.pixel_accuracies, _TYPE))
+        return dict(pa=pixel_accuracy)
 
 
 class MSEMeasure(object):
@@ -537,7 +620,10 @@ class HCEMeasure(object):
         self.hces.append(hce)
 
     def get_results(self) -> dict:
-        hce = np.mean(np.array(self.hces, _TYPE))
+        if len(self.hces) == 0:
+            hce = np.float64(-1)
+        else:
+            hce = np.mean(np.array(self.hces, _TYPE))
         return dict(hce=hce)
 
 

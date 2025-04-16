@@ -210,58 +210,27 @@ class Trainer:
             loss_pix = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
             self.loss_dict['loss_pix'] = loss_pix.item()
         except Exception as e:
-            print(e)
-            print(scaled_preds)
+            print(f"\033[91m{e}\033[0m")
             max_value = max(pred.max().item() for pred in scaled_preds)
             min_value = min(pred.min().item() for pred in scaled_preds)
-            print(f"Max value of scaled_preds: {max_value}")
-            print(f"Min value of scaled_preds: {min_value}")
+            print(f"\033[91mMax value of scaled_preds: {max_value}\033[0m")
+            print(f"\033[91mMin value of scaled_preds: {min_value}\033[0m")
 
         # since there may be several losses for sal, the lambdas for them (lambdas_pix) are inside the loss.py
         loss = loss_pix + loss_cls
         if config.out_ref and training:
             loss = loss + loss_gdt * 1.0
 
-        self.loss_log.update(loss.item(), inputs.size(0))
-
         if training:
+            self.loss_log.update(loss.item(), inputs.size(0))
             if args.use_accelerate:
                 loss = loss / accelerator.gradient_accumulation_steps
                 accelerator.backward(loss)
             else:
                 loss.backward()
             self.optimizer.step()
-
-    """def validate(self, validation_loader):
-        self.model.eval()  # Set model to evaluation mode
-        val_loss_log = AverageMeter()  # Track validation loss
-
-        with torch.no_grad():  # No gradient computation for validation
-            for batch in validation_loader:
-                if args.use_accelerate:
-                    inputs = batch[0]  # Data is already on the correct device from accelerator.prepare
-                    gts = batch[1]
-                    class_labels = batch[2]
-                else:
-                    inputs = batch[0].to(device)
-                    gts = batch[1].to(device)
-                    class_labels = batch[2].to(device)
-
-                # Forward pass
-                outputs = trainer.model(inputs)
-                
-                # Handle both training and evaluation modes
-                scaled_preds = outputs
-                class_preds_lst = None
-
-                # Compute loss
-                loss_pix = trainer.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
-                loss_cls = 0. if class_preds_lst is None else trainer.cls_loss(class_preds_lst, class_labels) * 1.0
-
-                loss = loss_pix + loss_cls
-                val_loss_log.update(loss.item(), inputs.size(0))
-
-        return val_loss_log.avg  # Return average validation loss  """
+        else:
+            self.val_loss_log.update(loss.item(), inputs.size(0))
     
     def train_epoch(self, epoch):
         global logger_loss_idx
@@ -283,13 +252,13 @@ class Trainer:
             # with nullcontext if not args.use_accelerate or accelerator.gradient_accumulation_steps <= 1 else accelerator.accumulate(self.model):
             self._batch(batch, True)
             # Logger
-            if batch_idx % 20 == 0:
+            if batch_idx % 10 == 0:
                 info_progress = 'Epoch[{0}/{1}] Iter[{2}/{3}].'.format(epoch, args.epochs, batch_idx, len(self.train_loader))
                 info_loss = 'Training Losses'
                 for loss_name, loss_value in self.loss_dict.items():
                     info_loss += ', {}: {:.3f}'.format(loss_name, loss_value)
                 logger.info(' '.join((info_progress, info_loss)))
-        info_loss = '@==Final== Epoch[{0}/{1}]  Training Loss: {loss.avg:.3f}  '.format(epoch, args.epochs, loss=self.loss_log)
+        info_loss = '@==Final== Epoch[{0}/{1}]  Training Loss: {loss.avg:.3f}'.format(epoch, args.epochs, loss=self.loss_log)
         logger.info(info_loss)
         self.lr_scheduler.step()
 
@@ -299,13 +268,13 @@ class Trainer:
         for batch_idx, batch in enumerate(self.validation_loader):
             self._batch(batch, False)
             # Logger
-            if batch_idx % 20 == 0:
+            if batch_idx % 3 == 0:
                 info_progress = 'Epoch[{0}/{1}] Iter[{2}/{3}].'.format(epoch, args.epochs, batch_idx, len(self.validation_loader))
                 info_loss = 'Validation Losses'
                 for loss_name, loss_value in self.loss_dict.items():
                     info_loss += ', {}: {:.3f}'.format(loss_name, loss_value)
                 logger.info(' '.join((info_progress, info_loss)))
-        info_loss = '@==Final== Epoch[{0}/{1}]  Validation Loss: {loss.avg:.3f}  '.format(epoch, args.epochs, loss=self.val_loss_log)
+        info_loss = '@==Final== Epoch[{0}/{1}]  Validation Loss: {loss.avg:.3f}'.format(epoch, args.epochs, loss=self.val_loss_log)
         logger.info(info_loss)
 
         return self.loss_log.avg, self.val_loss_log.avg
