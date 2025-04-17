@@ -3,10 +3,12 @@
 # Settings of training & test for different tasks.
 export CUDA_VISIBLE_DEVICES=0,1
 
-method="fine_tuning"
-epochs=254
-val_last=5
-step=1
+ckpt_dir="fine_tuning"
+train_set="train_generations_20250326_pose"
+validation_set="validation_generations_20250326_pose"
+epochs=294
+val_last=10
+step=2
 batch_size=2
 
 task=$(python3 config.py --print_task)
@@ -21,9 +23,11 @@ to_be_distributed=`echo ${nproc_per_node} | awk '{if($e > 0) print "True"; else 
 echo Training started at $(date)
 
 accelerate launch --multi_gpu --num_processes $((nproc_per_node+1)) \
-train.py --ckpt_dir ckpt/${method} --epochs ${epochs} \
+train.py --ckpt_dir ckpt/${ckpt_dir} --epochs ${epochs} \
     --dist ${to_be_distributed} \
     --resume ckpt/BiRefNet-general-epoch_244.pth \
+    --train_set ${train_set} \
+    --validation_set ${validation_set} \
     --use_accelerate
 
 echo Training finished at $(date)

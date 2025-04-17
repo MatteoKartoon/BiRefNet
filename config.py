@@ -13,9 +13,6 @@ class Config():
 
         # TASK settings
         self.task = ['DIS5K', 'COD', 'HRSOD', 'fine_tuning', 'General-2K', 'Matting'][3]
-        
-        self.validation_set = self.data_root_dir+"/fine_tuning/validation_generations_20250318_emotion"
-        self.training_set = self.data_root_dir+"/fine_tuning/train_generations_20250318_emotion"
   
         self.prompt4loc = ['dense', 'sparse'][0]
 
@@ -97,47 +94,19 @@ class Config():
         self.lr_decay_epochs = [1e5]    # Set to negative N to decay the lr in the last N-th epoch.
         self.lr_decay_rate = 0.5
         # Loss
-        if self.task in ['Matting']:
-            self.lambdas_pix_last = {
-                'bce': 30 * 1,
-                'iou': 0.5 * 0,
-                'iou_patch': 0.5 * 0,
-                'mae': 100 * 1,
-                'mse': 30 * 0,
-                'triplet': 3 * 0,
-                'reg': 100 * 0,
-                'ssim': 10 * 1,
-                'cnt': 5 * 0,
-                'structure': 5 * 0,
-            }
-        elif self.task in ['fine_tuning', 'General-2K']:
-            self.lambdas_pix_last = {
-                'bce': 30 * 1,
-                'iou': 0.5 * 1,
-                'iou_patch': 0.5 * 0,
-                'mae': 100 * 1,
-                'mse': 30 * 0,
-                'triplet': 3 * 0,
-                'reg': 100 * 0,
-                'ssim': 10 * 1,
-                'cnt': 5 * 0,
-                'structure': 5 * 0,
-            }
-        else:
-            self.lambdas_pix_last = {
-                # not 0 means opening this loss
-                # original rate -- 1 : 30 : 1.5 : 0.2, bce x 30
-                'bce': 30 * 1,          # high performance
-                'iou': 0.5 * 1,         # 0 / 255
-                'iou_patch': 0.5 * 0,   # 0 / 255, win_size = (64, 64)
-                'mae': 30 * 0,
-                'mse': 30 * 0,         # can smooth the saliency map
-                'triplet': 3 * 0,
-                'reg': 100 * 0,
-                'ssim': 10 * 1,          # help contours,
-                'cnt': 5 * 0,          # help contours
-                'structure': 5 * 0,    # structure loss from codes of MVANet. A little improvement on DIS-TE[1,2,3], a bit more decrease on DIS-TE4.
-            }
+        self.lambdas_pix_last = {
+            'bce': 30 * 1,
+            'iou': 0.5 * 1,
+            'iou_patch': 0.5 * 0,
+            'mae': 100 * 1,
+            'mse': 30 * 0,
+            'triplet': 3 * 0,
+            'reg': 100 * 0,
+            'ssim': 10 * 1,
+            'cnt': 5 * 0,
+            'structure': 5 * 0,
+        }
+
         self.lambdas_cls = {
             'ce': 5.0
         }
@@ -163,7 +132,7 @@ class Config():
         # others
         self.device = [0, 'cpu'][0]     # .to(0) == .to('cuda:0')
 
-        self.batch_size_valid = 1
+        self.batch_size_test = 1
         self.rand_seed = 7
 
         # Read save_last and save_step from train_finetuning.sh

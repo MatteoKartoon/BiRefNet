@@ -1,5 +1,5 @@
 # Evaluation
-pred_path=$1
+pred_path="20250407__1120__epoch294/test_generations_20250326_pose+20250407__1120__epoch294/test_generations_20250318_emotion+briaai/test_generations_20250326_pose+photoroom/test_generations_20250326_pose"
 
 log_dir=e_logs && mkdir ${log_dir}
 

@@ -43,12 +43,12 @@ def pt_red_pixels(gt: np.ndarray, mask: np.ndarray) -> np.ndarray:
         mask (np.ndarray): Predicted mask as a numpy array (grayscale)
         
     Returns:
-        Image.Image: RGBA image where:
+        np.ndarray: represent an RGB image where:
             - Red channel shows large differences (>10) between gt and mask
             - Grayscale shows small differences (≤10) using mask values
             
     Note:
-        The function expects grayscale images (2D arrays) and returns an RGBA image (3D array)
+        The function expects grayscale images (2D arrays) and returns an RGB image (3D array)
     """
     # Ensure input images have the same dimensions
     assert gt.size == mask.size
@@ -114,57 +114,62 @@ def erode_red(image: np.ndarray) -> np.ndarray:
     return final_image
 
 
-def compute_interest(scoresss, metrics,many):
-    #Compute an interesting rate for each image based on the difference between the max and min score of the metrics
-    print(f"Computing the most interesting {many} images based on metrics: {metrics}...")
-    interest_values=[]
-    s_copy=copy.deepcopy(scoresss)
-    #Loop through all the images
-    for scoress in s_copy:
-        for ins,scores in enumerate(scoress):
-            scoress[ins] = [scores[i] for i in metrics]
-        print(scoress)
-        int_val=max(map(max, scoress))-min(map(min, scoress)) #Difference between the max and min score for that image
-        interest_values.append(int_val)
-        print(int_val)
-    print(interest_values)
+def compute_interest(metric: str, pred_scores: dict[str], many: int, images_number: int):
+    """For a given metric, compute the most interesting images based on the difference between the max and min score got, comparing the different models
+    Return the indexes of the most many interesting images"""
+
+    # Initialize a dictionary to store the interest values for each image
+    interest_values = [0] * images_number
+
+    # Loop through each image
+    for i in range(images_number):
+        # Get the scores for the current image from all models
+        scores = [pred_scores[model][i][metric] for model in pred_scores]
+
+        # Calculate the difference between the max and min score
+        max_score = max(scores)
+        min_score = min(scores)
+        interest_values[i] = max_score - min_score
+
     interest_indexes = sorted(range(len(interest_values)), key=lambda i: interest_values[i], reverse=True)[:many]
     #Return the indexes of the most interesting images
     return interest_indexes
 
 
-def do_visualization(model_paths):
-    #function to visualize the results of the models with the scores
-    dm=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE','PA']
-    #Create a list of the ground truth and image paths
-    gt_paths = sorted(glob(os.path.join(config.testsets, 'gt', '*')))
-    image_paths = sorted(glob(os.path.join(config.testsets, 'im', '*')))
+def do_visualization(model_paths: list[str], gt_paths: list[str], image_paths: list[str]):
+    """Take a list of model paths, ground truth paths and original image paths and,
+    print a picture for each model, containing a comparison between the ground truth and the model prediction"""
+    
     #Loop through all the models
     for model_path in model_paths:
         print("Visualizing model results: ", model_path)
+
         # Load the model predictions
-        pred_data_dir = [os.path.join("e_preds", model_path, file_name) for file_name in os.listdir("e_preds/{}".format(model_path))]
+        pred_data_dir=os.path.join("e_preds", model_path, args.testset)
+        assert os.path.exists(pred_data_dir), "Model prediction path does not exist"
+        pred_content = sorted([os.path.join(pred_data_dir, f) for f in os.listdir(pred_data_dir)])
+        assert len(pred_content) == len(gt_paths), "Number of model predictions and ground truth paths do not match"
         
-        pred_data_dir = sorted(pred_data_dir)
-        print(pred_data_dir)
-        lun = len(pred_data_dir)
-        plt.figure(figsize=(25, 8*lun))
+        #get the number of model predictions and number of images to be visualized 
+        gt_len = len(gt_paths)
+        picture_len = min(10,gt_len)
+
+        #initialize the figure
+        plt.figure(figsize=(25, 8*picture_len))
         
-        #Choose at most 10 random images to visualize
-        rs=random.sample(range(0,len(gt_paths)),min(10,len(gt_paths)))
-        print(rs)
-        zs=list(zip(np.transpose(pred_data_dir), gt_paths, image_paths))
-        z=[]
-        for r in rs:
-            z.append(zs[r])
+        #Choose at most 10 random images to be visualized
+        visualize_inds=random.sample(range(0,gt_len),picture_len)
+        
+        #select the pictures to be visualized
+        visualize_pictures = [(pred_content[i], gt_paths[i], image_paths[i]) for i in visualize_inds]
+
         # Evaluate model predictions against ground truth
-        for i, (pred_path, gt_path, image_path) in enumerate(z):
-            print('\t', 'Evaluating prediction: {} against ground truth: {}'.format(pred_path, gt_path))
+        for i, (pred_path, gt_path, image_path) in enumerate(visualize_pictures):
             #Evaluate the model predictions against the ground truth
             em, sm, fm, mae, mse, wfm, hce, mba, biou, pa = evaluator(
                 gt_paths=[gt_path],
                 pred_paths=[pred_path],
-                metrics=dm,
+                #metrics=args.metrics.split('+'), if we want display only few metrics
                 verbose=config.verbose_eval
             )
             #Save the scores for the current image
@@ -173,35 +178,34 @@ def do_visualization(model_paths):
                     em['curve'].max().round(3), fm['curve'].mean().round(3), em['adp'].round(3), fm['adp'].round(3),
                     mba.round(3), biou['curve'].max().round(3),mse.round(3), biou['curve'].mean().round(3), pa.round(3)
             ]
-            print(scores)
             #Display
-            plt.subplot(lun, 6, 6*i+1)
+            plt.subplot(picture_len, 6, 6*i+1)
             plt.imshow(Image.open(image_path))
             plt.axis('off')
             plt.title('Original')
 
-            plt.subplot(lun, 6, 6*i+3)
+            plt.subplot(picture_len, 6, 6*i+3)
             plt.imshow(pt_green_bg(image_path, pred_path))
             plt.axis('off')
             plt.title('Model prediction')
 
-            plt.subplot(lun, 6, 6*i+2)
+            plt.subplot(picture_len, 6, 6*i+2)
             plt.imshow(pt_green_bg(image_path, gt_path))
             plt.axis('off')
             plt.title('Ground truth')
             
-            plt.subplot(lun, 6, 6*i+5)
+            plt.subplot(picture_len, 6, 6*i+5)
             #plt.imshow(pt_red_pixels(cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE), cv2.imread(pred_path, cv2.IMREAD_GRAYSCALE)))
             plt.imshow(Image.open(pred_path))
             plt.axis('off')
             plt.title('Model prediction mask')
 
-            plt.subplot(lun, 6, 6*i+4)
+            plt.subplot(picture_len, 6, 6*i+4)
             plt.imshow(Image.open(gt_path))
             plt.axis('off')
             plt.title('Ground truth mask')
 
-            plt.subplot(lun, 6, 6*i+6)
+            plt.subplot(picture_len, 6, 6*i+6)
             plt.axis('off')
             plt.text(0.5, 0.5, f"maxFm: {scores[0]}\nwFmeasure: {scores[1]}\nMAE: {scores[2]}\nSmeasure: {scores[3]}\n"
                     f"meanEm: {scores[4]}\nHCE: {scores[5]}\nmaxEm: {scores[6]}\nmeanFm: {scores[7]}\n"
@@ -210,130 +214,128 @@ def do_visualization(model_paths):
 
         plt.tight_layout()
         # Save the figure
-        output_file = os.path.join("e_results", f'visualization_{model_path.replace("/", "_")}.png')
+        output_file = os.path.join("e_results", f'visualization__{model_path}__{args.testset}.png')
         print(f"Saving visualization to: {output_file}")
-        plt.savefig(output_file, bbox_inches='tight', dpi=300)
-        
-        # Try to display (will work in interactive environments)
-        try:
-            plt.show()
-        except:
-            print("Could not display plot interactively")
-        
+        plt.savefig(output_file, bbox_inches='tight', dpi=300)        
         plt.close()
     
 
-def do_ranking(model_paths, metrics):
-    #function to help ranking the models based on the metrics
-    inds=[3,2,4,7,1,10,-2,-3,5,-1] #List of metrics indices to pick the correct score from the scores tensor
-    dm=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE','PA']
-    metr_sel_ind=[]
-    for m in metrics:
-        metr_sel_ind.append(inds[dm.index(m)])
-    print("Ranking models", model_paths, "based on metrics: ", metrics, "...")
-    #find the paths of original images, ground truth and model predictions
-    pred_data_dir = []
-    for i, model_path in enumerate(model_paths):
-        pred_data_dir.append(sorted([os.path.join("e_preds", model_path, file_name) for file_name in os.listdir("e_preds/{}".format(model_path))]))
-    gt_paths = sorted(glob(os.path.join(config.testsets, 'gt', '*')))
-    image_paths = sorted(glob(os.path.join(config.testsets, 'im', '*')))
-    print(config.testsets)
-    #initialize the figure
-    lun = min(10,len(gt_paths)) #minimum between 10 and the number of testing images
-    lar = len(model_paths)+2
-
-    plt.figure(m,figsize=(5*lar, 6*lun))
+def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], image_paths: list[str]):
+    """Take a list of model paths, metrics, ground truth paths and original image paths and,
+    print a picture for each specified metric, containing a comparison between the specified models"""
     
-    zs=list(zip(np.transpose(pred_data_dir), gt_paths, image_paths))
-    scoresss=[]
-    #for each image compute the scores
-    for im_ind, (p, g, m) in enumerate(zs):
-        #load the images
-        image_pred = []
-        scoress=[]
-        for mod_ind in range(len(p)):
-            # Evaluate model predictions against ground truth
+    print("Ranking models", model_paths, "based on metrics: ", metrics, "...")
+
+    #define a dictionary having as keys the model paths and as values the paths of the model predictions
+    pred_content = {}
+    for model_path in model_paths:
+        # Load the model predictions
+        pred_data_dir=os.path.join("e_preds", model_path, args.testset)
+        assert os.path.exists(pred_data_dir), "Model prediction path does not exist"
+        model_file_list = sorted([os.path.join(pred_data_dir, f) for f in os.listdir(pred_data_dir)])
+        assert len(model_file_list) == len(gt_paths), "Number of model predictions and ground truth paths do not match"
+        pred_content[model_path] = model_file_list
+    
+    #get the number of model predictions and number of images to be visualized 
+    gt_len = len(gt_paths)
+    picture_len = min(10,gt_len)
+    picture_wids=len(model_paths)+2
+    
+    #Create a dictionary with the same shape as prediction_content dictionary, to save scores for each model and image
+    pred_scores = copy.deepcopy(pred_content)
+    #Loop through all the images and models, and compute the scores for each model and metric
+    for im_ind, im in enumerate(gt_paths):
+        for model_path in model_paths:
+            pred_path = pred_content[model_path][im_ind]
+            #Evaluate the model predictions against the ground truth
             em, sm, fm, mae, mse, wfm, hce, mba, biou, pa = evaluator(
-                gt_paths=[g],
-                pred_paths=[p[mod_ind]],
-                metrics=dm,
+                gt_paths=[im],
+                pred_paths=[pred_path],
+                metrics=metrics,
                 verbose=config.verbose_eval
             )
+            #Save the scores for the current image and model in a dictionary
+            scores = {'S': sm.round(3), 'MAE': mae.round(3), 'E': em['curve'].mean().round(3), 'F': fm['curve'].mean().round(3), 'WF': wfm.round(3),
+                      'MBA': mba.round(3), 'BIoU': biou['curve'].mean().round(3), 'MSE': mse.round(3), 'HCE': int(hce.round()), 'PA': pa.round(3)}
+            pred_scores[model_path][im_ind] = scores
 
-            scores = [
-                    fm['curve'].max().round(3), wfm.round(3), mae.round(3), sm.round(3), em['curve'].mean().round(3), int(hce.round()), 
-                    em['curve'].max().round(3), fm['curve'].mean().round(3), em['adp'].round(3), fm['adp'].round(3),
-                    mba.round(3), biou['curve'].max().round(3),mse.round(3), biou['curve'].mean().round(3), pa.round(3)
-                    ]
-            scoress.append(scores)
-        scoresss.append(scoress) #tensor containing the scores of all the images for all the models and metrics
+    #loop through all the metrics, and do a different visualization for each of them
+    for metric in metrics:
+        #Compute the most interesting picture_len images based on the metrics, and keep only them
+        visualize_inds=compute_interest(metric,pred_scores,picture_len,gt_len)
+        #select the pictures to be visualized
+        visualize_pictures = [(np.transpose([pred_content[model_path][i] for model_path in model_paths]), gt_paths[i], image_paths[i]) for i in visualize_inds]
 
-    #Compute the most interesting images based on the metrics, and keep only them
-    rs=compute_interest(scoresss,metr_sel_ind,lun)
-    print("The most interesting images are: ", rs)
-    z=[]
-    for r in rs:
-        z.append(zs[r])
-
-    #Loop through all the interesting images, the models and the metrics
-    for im_ind, (p, g, m) in enumerate(z):
-        image=Image.open(m)
-        image_gt=Image.open(g)
-        image_pred=[]
-        for mod_ind in range(len(p)):
-            print("Opening image at: ", p[mod_ind])
-            image_pred.append(Image.open(p[mod_ind]))
-        for metric in metrics:
+        #initialize the figure
+        plt.figure(figsize=(5*picture_wids, 6*picture_len))
+        #Loop through all the interesting images, the models and the metrics
+        for im_ind, (p, g, m) in enumerate(visualize_pictures):
+            image_original=Image.open(m)
+            image_gt=Image.open(g)
+            
             # Display
-            plt.figure(metric, figsize=(5*lar, 6*lun))
-            plt.subplot(lun, lar, lar*im_ind+1)
-            plt.imshow(image)
+            plt.subplot(picture_len, picture_wids, picture_wids*im_ind+1)
+            plt.imshow(image_original)
             plt.axis('off')
             plt.title('Original',fontsize=20)
 
-            plt.subplot(lun, lar, lar*im_ind+2)
+            plt.subplot(picture_len, picture_wids, picture_wids*im_ind+2)
             plt.imshow(image_gt)
             plt.axis('off')
             plt.title('Ground truth',fontsize=20)
-
+            
+            #for each model show the prediction
             for i in range(len(p)):
-                plt.subplot(lun, lar, lar*im_ind+3+i)
+                plt.subplot(picture_len, picture_wids, picture_wids*im_ind+3+i)
 
-                # Read and resize images
+                # Read as cv2
                 gt_img = cv2.imread(g, cv2.IMREAD_GRAYSCALE)
                 pred_img = cv2.imread(p[i], cv2.IMREAD_GRAYSCALE)
-                
+
+                #if metric is PA show the red pixels eroded
                 if metric!='PA':
                     plt.imshow(Image.fromarray(pt_red_pixels(gt_img, pred_img)))
                 else:
                     plt.imshow(Image.fromarray(erode_red(pt_red_pixels(gt_img, pred_img))))
+
                 plt.axis('off')
-                vet=p[i].split("/")[1:-1]
-                tit=" ".join(v for v in vet)
+                tit=p[i].split("/")[1]
                 #Pick the correct score from the scores tensor
-                score=scoresss[rs[im_ind]][i][inds[dm.index(metric)]]
+                score=pred_scores[model_paths[i]][visualize_inds[im_ind]][metric]
                 #Display the score
-                print("Model: ", tit, "Metric: ", metric, "Score: ", score)
                 plt.title("Model "+tit+"\n"+f"{metric}: {score}",fontsize=20)
-    # Save one figure for each metric
-    for metric in metrics:
-        plt.figure(metric)
+
         plt.tight_layout()
-        output_file = os.path.join("e_results", f'comparison_{metric}.png')
+
+        #save the figure
+        output_file = os.path.join("e_results", f'comparison_{metric}__{args.testset}.png')
         print(f"Saving comparison for {metric} to: {output_file}")
         plt.savefig(output_file, bbox_inches='tight', dpi=300)
-
+        plt.close()
 
 if __name__ == '__main__':
     # Initialize the argument parser
     parser = argparse.ArgumentParser(description='Run visualization or ranking based on the provided parameters.')
     parser.add_argument('--models', type=str, required=True, help='Path to the models')
     parser.add_argument('--metrics', type=str, help='Metrics to be used',
-                        default=','.join(['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE','PA']))
+                        default='+'.join(['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE','PA']))
+    parser.add_argument('--testset', type=str, help='Testset to be used', required=True)
 
     # Parse the arguments
     args = parser.parse_args()
 
+    models = args.models.split('+')
+    metrics = args.metrics.split('+')
+    testset = os.path.join(config.data_root_dir, "fine_tuning", args.testset)
+
+    assert os.path.exists(testset+"/gt"), f"Ground-truth path {testset}/gt does not exist"
+    assert os.path.exists(testset+"/im"), f"Original image path {testset}/im does not exist"
+
+    gt_paths = sorted(glob(os.path.join(testset, 'gt', '*')))
+    image_paths = sorted(glob(os.path.join(testset, 'im', '*')))
+
+    assert len(gt_paths) == len(image_paths), f"Number of ground-truth and original image paths {len(gt_paths)} and {len(image_paths)} do not match"
+
     # Call the appropriate function based on the comparison flag
-    do_ranking(args.models.split(','), args.metrics.split(','))
-    do_visualization(args.models.split(','))
+    do_ranking(models, metrics, gt_paths, image_paths)
+    do_visualization(models, gt_paths, image_paths)

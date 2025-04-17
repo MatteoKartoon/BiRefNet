@@ -28,6 +28,8 @@ parser.add_argument('--epochs', default=120, type=int)
 parser.add_argument('--ckpt_dir', default='ckpt/tmp', help='Temporary folder')
 parser.add_argument('--dist', default=False, type=lambda x: x == 'True')
 parser.add_argument('--use_accelerate', action='store_true', help='`accelerate launch --multi_gpu train.py --use_accelerate`. Use accelerate for training, good for FP16/BF16/...')
+parser.add_argument('--train_set', type=str, help='Training set')
+parser.add_argument('--validation_set', type=str, help='Validation set')
 args = parser.parse_args()
 
 if args.use_accelerate:
@@ -97,16 +99,19 @@ def prepare_dataloader(dataset: torch.utils.data.Dataset, batch_size: int, to_be
 
 def init_data_loaders(to_be_distributed):
     # Prepare datasets
+    training_set = os.path.join(config.data_root_dir, config.task, args.train_set)
+    validation_set = os.path.join(config.data_root_dir, config.task, args.validation_set)
     train_loader = prepare_dataloader(
-        MyData(datasets=config.training_set, image_size=config.size, is_train=True),
+        MyData(datasets=training_set, image_size=config.size, is_train=True),
         config.batch_size, to_be_distributed=to_be_distributed, is_train=True
     )
 
     validation_loader = prepare_dataloader(
-        MyData(datasets=config.validation_set, image_size=config.size, is_train=False),
+        MyData(datasets=validation_set, image_size=config.size, is_train=False),
         config.batch_size, to_be_distributed=to_be_distributed, is_train=False
     )
-    print(len(train_loader), "batches of train dataloader {} have been created.".format(config.training_set))
+    print(len(train_loader), "batches of train dataloader {} have been created.".format(training_set))
+    print(len(validation_loader), "batches of validation dataloader {} have been created.".format(validation_set))
     return train_loader, validation_loader
 
 
@@ -173,7 +178,7 @@ class Trainer:
         self.loss_log = AverageMeter()
         self.val_loss_log = AverageMeter()
 
-    def _batch(self, batch, training):
+    def _batch(self, batch, training, batch_idx):
         if args.use_accelerate:
             inputs = batch[0]#.to(device)
             gts = batch[1]#.to(device)
@@ -207,6 +212,12 @@ class Trainer:
         
         # Loss
         try:
+            if training and batch_idx % 50 == 0:
+                print(f"\033[91Prediction Lenght: {len(scaled_preds)}\033[0m")
+                print(f"\033[91Shape of first prediction: {scaled_preds[0].shape}\033[0m")
+            if not training and batch_idx % 6 == 0:
+                print(f"\033[91mPrediction Lenght: {len(scaled_preds)}\033[0m")
+                print(f"\033[91mShape of first prediction: {scaled_preds[0].shape}\033[0m")
             loss_pix = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
             self.loss_dict['loss_pix'] = loss_pix.item()
         except Exception as e:
@@ -250,7 +261,7 @@ class Trainer:
         #Loop over the training batches
         for batch_idx, batch in enumerate(self.train_loader):
             # with nullcontext if not args.use_accelerate or accelerator.gradient_accumulation_steps <= 1 else accelerator.accumulate(self.model):
-            self._batch(batch, True)
+            self._batch(batch, True, batch_idx)
             # Logger
             if batch_idx % 10 == 0:
                 info_progress = 'Epoch[{0}/{1}] Iter[{2}/{3}].'.format(epoch, args.epochs, batch_idx, len(self.train_loader))
@@ -266,7 +277,7 @@ class Trainer:
         self.loss_dict = {}
         #Loop over the validation batches
         for batch_idx, batch in enumerate(self.validation_loader):
-            self._batch(batch, False)
+            self._batch(batch, False, batch_idx)
             # Logger
             if batch_idx % 3 == 0:
                 info_progress = 'Epoch[{0}/{1}] Iter[{2}/{3}].'.format(epoch, args.epochs, batch_idx, len(self.validation_loader))

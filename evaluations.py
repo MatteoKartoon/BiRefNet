@@ -21,7 +21,7 @@ def get_scores(list_gt: List[str], list_pred: List[str]):
     em, sm, fm, mae, mse, wfm, hce, mba, biou, pa = evaluator(
         gt_paths=list_gt,
         pred_paths=list_pred,
-        metrics=args.metrics.split('+'),
+        #metrics=args.metrics.split('+'), if we want display only few metrics
         verbose=config.verbose_eval
     )
 
@@ -37,7 +37,7 @@ def get_scores(list_gt: List[str], list_pred: List[str]):
         scores[idx_score] = '.' + format(score, '.3f').split('.')[-1] if score < 1  else format(score, '<4')
 
     #create a list containing the scores
-    return  scores
+    return scores
 
 
 def do_eval(args):
@@ -48,7 +48,7 @@ def do_eval(args):
     os.makedirs(args.save_dir, exist_ok=True)
     
     #get a list of the prediction folders we want to evaluate
-    args.predictions = args.pred_path.split(',')
+    args.predictions = args.pred_path.split('+')
 
     #create a file to save the results
     filename = os.path.join(args.save_dir, '{}_eval.txt'.format(config.task))
@@ -61,6 +61,10 @@ def do_eval(args):
         #get the ground-truth and prediction precise paths
         gt_pth = os.path.join(args.gt_root, prediction.split('/')[-1],"gt")
         pred_pth = os.path.join(args.pred_root, prediction)
+
+        #check if the ground-truth and prediction folders exist
+        assert os.path.exists(gt_pth), "Ground-truth path does not exist"
+        assert os.path.exists(pred_pth), "Prediction path does not exist"
 
         #print information while computing
         print("Evaluating predictions for model: ", prediction)

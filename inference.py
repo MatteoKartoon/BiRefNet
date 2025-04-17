@@ -63,7 +63,7 @@ def main(args):
         print('>>>> Testset: {}'.format(testset_pth))
         data_loader_test = torch.utils.data.DataLoader(
             dataset=MyData(testset_pth, image_size=config.size, is_train=False),
-            batch_size=config.batch_size_valid, shuffle=False, num_workers=config.num_workers, pin_memory=True
+            batch_size=config.batch_size_test, shuffle=False, num_workers=config.num_workers, pin_memory=True
         )
         
         print('\tInferencing {}...'.format(weights))
