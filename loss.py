@@ -133,7 +133,8 @@ class PixLoss(nn.Module):
 
         self.criterions_last = {}
         if 'bce' in self.lambdas_pix_last and self.lambdas_pix_last['bce']:
-            self.criterions_last['bce'] = nn.BCELoss()
+            #self.criterions_last['bce'] = nn.BCELoss()
+            self.criterions_last['bce'] = nn.BCEWithLogitsLoss()
         if 'iou' in self.lambdas_pix_last and self.lambdas_pix_last['iou']:
             self.criterions_last['iou'] = IoULoss()
         if 'iou_patch' in self.lambdas_pix_last and self.lambdas_pix_last['iou_patch']:
@@ -157,9 +158,11 @@ class PixLoss(nn.Module):
             if pred_lvl.shape != gt.shape:
                 pred_lvl = nn.functional.interpolate(pred_lvl, size=gt.shape[2:], mode='bilinear', align_corners=True)
             for criterion_name, criterion in self.criterions_last.items():
-                _loss = criterion(pred_lvl.sigmoid(), gt) * self.lambdas_pix_last[criterion_name]
+                if criterion_name == 'bce':
+                    _loss = criterion(pred_lvl, gt) * self.lambdas_pix_last[criterion_name]
+                else:
+                    _loss = criterion(pred_lvl.sigmoid(), gt) * self.lambdas_pix_last[criterion_name]
                 loss += _loss
-                # print(criterion_name, _loss.item())
         return loss
 
 

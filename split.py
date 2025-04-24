@@ -16,9 +16,15 @@ def check_correspondence(gt_images: List[str], original_images: List[str]):
     Check if the images have been split correctly, with each annotated image coinciding with an original image
     Return True if the splitting is correct, False otherwise
     """
-    if common_order_1(gt_images, original_images)==gt_images:
+    common_images=common_order_1(gt_images, original_images)
+    if common_images==gt_images:
         return True
-    return False
+    else:
+        print("The following images are not in the original images:")
+        for image in gt_images:
+            if image not in common_images:
+                print(image)
+        return False
 
 def move_images(image_list: List[str], source_dir: str, dest_dir: str):
         """
@@ -44,10 +50,11 @@ def rename_picture(picture_path: str):
     """
     picture_name=picture_path.split("/")[-1]
     picture_name_split=picture_name.split("_")
-    new_name="_".join([picture_name_split[0], "-".join(picture_name_split[1:-3]), picture_name_split[-3], ''.join(c for c in picture_name_split[-2] if c.isdigit())])+".png"
+    #new_name="_".join([picture_name_split[0], "-".join(picture_name_split[1:-3]), picture_name_split[-3], ''.join(c for c in picture_name_split[-2] if c.isdigit())])+".png"
+    new_name="_".join([picture_name_split[0], "-".join(picture_name_split[1:-2]), picture_name_split[-2]])+".png" #if there isn't seed in the name
     #Check if the new name already exists
-    if os.path.exists(os.path.join(os.path.dirname(picture_path), new_name)):
-        raise ValueError(f"The image {new_name} has already been added to the list")
+    if os.path.exists(os.path.join(os.path.dirname(picture_path), new_name)) and new_name!=picture_name:
+        raise ValueError(f"The image {new_name} has already been added to the list", picture_name)
     os.rename(picture_path, os.path.join(os.path.dirname(picture_path), new_name))
     return new_name
 
@@ -55,7 +62,8 @@ def special_print(image: str):
     """
     Print the image in a special format
     """
-    return "Alpha channel: "+image.split("_")[0]+", Context: "+image.split("_")[1]+", Character ID: "+image.split("_")[2]+", Seed: "+image.split("_")[-1].replace(".png", "").replace("seed", "")
+    #return "Alpha channel: "+image.split("_")[0]+", Context: "+image.split("_")[1:-2]+", Character ID: "+image.split("_")[-2]+", Seed: "+image.split("_")[-1].replace(".png", "").replace("seed", "")
+    return "Alpha channel: "+image.split("_")[0]+", Context: "+"_".join(image.split("_")[1:-1])+", Character ID: "+image.split("_")[-1] #if there isn't seed in the name
 
 def common_order_1(image_list1: List[str], image_list2: List[str]):
     """
@@ -98,8 +106,11 @@ def split_dataset(train_ratio: float, val_ratio: float, test_ratio: float, input
     test_dir_gt = os.path.join(test_dir, "an")
 
     # Get the list of all ground truth images and original images, renaiming them to the format "alphachannel_context_characterid_seed.png"
-    images=[rename_picture(os.path.join(gt_dir, f)) for f in os.listdir(gt_dir) if f.endswith(".png")]
-    original_images = [rename_picture(os.path.join(input_dir, f)) for f in os.listdir(input_dir) if f.endswith('.png')]
+    found_gt=os.listdir(gt_dir)
+    found_im=os.listdir(input_dir)
+    
+    images=[rename_picture(os.path.join(gt_dir, f)) for f in found_gt if f.endswith(".png")]
+    original_images = [rename_picture(os.path.join(input_dir, f)) for f in found_im if f.endswith('.png')]
 
     #Check one to one correspondency between ground truth and original images
     check=check_correspondence(images, original_images)
@@ -127,6 +138,7 @@ def split_dataset(train_ratio: float, val_ratio: float, test_ratio: float, input
         os.makedirs(test_dir_gt, exist_ok=False)
     except FileExistsError:
         print("These split directories already exist, skipping the split...")
+        return
 
     # Save the splitting information
     with open(os.path.join(output_dir, "splitting.log"), "a") as f:

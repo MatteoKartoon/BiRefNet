@@ -168,7 +168,8 @@ class Trainer:
                 self.train_loader, self.validation_loader, self.model, self.optimizer
             )
         if config.out_ref:
-            self.criterion_gdt = nn.BCELoss()
+            #self.criterion_gdt = nn.BCELoss()
+            self.criterion_gdt = nn.BCEWithLogitsLoss()
 
         # Setting Losses
         self.pix_loss = PixLoss()
@@ -200,7 +201,7 @@ class Trainer:
             # Only unpack if in training mode and out_ref is enabled
             (outs_gdt_pred, outs_gdt_label), scaled_preds = scaled_preds
             for _idx, (_gdt_pred, _gdt_label) in enumerate(zip(outs_gdt_pred, outs_gdt_label)):
-                _gdt_pred = nn.functional.interpolate(_gdt_pred, size=_gdt_label.shape[2:], mode='bilinear', align_corners=True).sigmoid()
+                _gdt_pred = nn.functional.interpolate(_gdt_pred, size=_gdt_label.shape[2:], mode='bilinear', align_corners=True)#.sigmoid()
                 _gdt_label = _gdt_label.sigmoid()
                 loss_gdt = self.criterion_gdt(_gdt_pred, _gdt_label) if _idx == 0 else self.criterion_gdt(_gdt_pred, _gdt_label) + loss_gdt
             # self.loss_dict['loss_gdt'] = loss_gdt.item()
@@ -211,26 +212,13 @@ class Trainer:
             self.loss_dict['loss_cls'] = loss_cls.item()
         
         # Loss
-        try:
-            if training and batch_idx % 50 == 0:
-                print(f"\033[91Prediction Lenght: {len(scaled_preds)}\033[0m")
-                print(f"\033[91Shape of first prediction: {scaled_preds[0].shape}\033[0m")
-            if not training and batch_idx % 6 == 0:
-                print(f"\033[91mPrediction Lenght: {len(scaled_preds)}\033[0m")
-                print(f"\033[91mShape of first prediction: {scaled_preds[0].shape}\033[0m")
-            loss_pix = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
-            self.loss_dict['loss_pix'] = loss_pix.item()
-        except Exception as e:
-            print(f"\033[91m{e}\033[0m")
-            max_value = max(pred.max().item() for pred in scaled_preds)
-            min_value = min(pred.min().item() for pred in scaled_preds)
-            print(f"\033[91mMax value of scaled_preds: {max_value}\033[0m")
-            print(f"\033[91mMin value of scaled_preds: {min_value}\033[0m")
+        loss_pix = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
+        self.loss_dict['loss_pix'] = loss_pix.item()
 
         # since there may be several losses for sal, the lambdas for them (lambdas_pix) are inside the loss.py
         loss = loss_pix + loss_cls
         if config.out_ref and training:
-            loss = loss + loss_gdt * 1.0
+            loss = loss + loss_gdt
 
         if training:
             self.loss_log.update(loss.item(), inputs.size(0))
@@ -240,6 +228,16 @@ class Trainer:
             else:
                 loss.backward()
             self.optimizer.step()
+
+            # Print gradient norm to monitor training
+            if batch_idx % 10 == 0:
+                total_norm = 0
+                for p in self.model.parameters():
+                    if p.grad is not None:
+                        param_norm = p.grad.data.norm(2)
+                    total_norm += param_norm.item() ** 2
+                total_norm = total_norm ** 0.5
+                print("Gradient norm:", total_norm)
         else:
             self.val_loss_log.update(loss.item(), inputs.size(0))
     

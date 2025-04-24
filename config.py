@@ -47,8 +47,8 @@ class Config():
                 'General-2K': -20,
                 'Matting': -20,
             }[self.task]
-        ][1]    # choose 0
-        self.lr = (1e-4 if 'DIS5K' in self.task else 1e-5) * math.sqrt(self.batch_size / 4)     # DIS needs high lr to converge faster. Adapt the lr linearly
+        ][3]    # choose -20
+        self.lr = 1e-5 * math.sqrt(self.batch_size / 4)
         self.size = (1024, 1024) if self.task not in ['General-2K'] else (2560, 1440)   # wid, hei
         self.dynamic_size = [(0, 0), ((512-256, 2048+256), (512-256, 2048+256))][0]    # wid, hei. It might cause errors in using compile.
         self.background_color_synthesis = False             # whether to use pure bg color to replace the original backgrounds.
@@ -95,7 +95,7 @@ class Config():
         self.lr_decay_rate = 0.5
         # Loss
         self.lambdas_pix_last = {
-            'bce': 30 * 1,
+            'bce': 100 * 1,
             'iou': 0.5 * 1,
             'iou_patch': 0.5 * 0,
             'mae': 100 * 1,
