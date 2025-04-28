@@ -71,16 +71,6 @@ def pt_red_pixels(gt: np.ndarray, mask: np.ndarray) -> np.ndarray:
     output[~large_diff_mask, 0] = mask[~large_diff_mask]  # R
     output[~large_diff_mask, 1] = mask[~large_diff_mask]  # G
     output[~large_diff_mask, 2] = mask[~large_diff_mask]  # B
-
-    #check why there are some pixels that are not red or gray scale
-    #SOLVED:Even if your pixel values are precisely red [255, 0, 0] or grayscale [x, x, x], Image.fromarray might internally perform slight interpolation or color space interpretation when you resize, save, or display the image — especially on screens that auto-apply gamma correction.
-    #c=0
-    #for i in range(output.shape[0]):
-    #    for j in range(output.shape[1]):
-    #        if not ((output[i, j, 0] == 255) & (output[i, j, 1] == 0) & (output[i, j, 2] == 0)) and not ((output[i, j, 0] == output[i, j, 1]) & (output[i, j, 0] == output[i, j, 2])):
-    #            c+=1
-    #print(f"Number of pixels that are not red or gray scale: {c}")
-    #print(output.shape)
     
     return output
 
@@ -145,7 +135,7 @@ def do_visualization(model_paths: list[str], gt_paths: list[str], image_paths: l
         print("Visualizing model results: ", model_path)
 
         # Load the model predictions
-        pred_data_dir=os.path.join("e_preds", model_path, args.testset)
+        pred_data_dir=os.path.join("../e_preds", model_path, args.testset)
         assert os.path.exists(pred_data_dir), "Model prediction path does not exist"
         pred_content = sorted([os.path.join(pred_data_dir, f) for f in os.listdir(pred_data_dir)])
         assert len(pred_content) == len(gt_paths), "Number of model predictions and ground truth paths do not match"
@@ -214,7 +204,7 @@ def do_visualization(model_paths: list[str], gt_paths: list[str], image_paths: l
 
         plt.tight_layout()
         # Save the figure
-        output_file = os.path.join("e_results", f'visualization__{model_path}__{args.testset}.png')
+        output_file = os.path.join("../e_results", f'visualization__{model_path}__{args.testset}.png')
         print(f"Saving visualization to: {output_file}")
         plt.savefig(output_file, bbox_inches='tight', dpi=300)        
         plt.close()
@@ -230,7 +220,7 @@ def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], 
     pred_content = {}
     for model_path in model_paths:
         # Load the model predictions
-        pred_data_dir=os.path.join("e_preds", model_path, args.testset)
+        pred_data_dir=os.path.join("../e_preds", model_path, args.testset)
         assert os.path.exists(pred_data_dir), "Model prediction path does not exist"
         model_file_list = sorted([os.path.join(pred_data_dir, f) for f in os.listdir(pred_data_dir)])
         assert len(model_file_list) == len(gt_paths), "Number of model predictions and ground truth paths do not match"
@@ -308,7 +298,7 @@ def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], 
         plt.tight_layout()
 
         #save the figure
-        output_file = os.path.join("e_results", f'comparison_{metric}__{args.testset}.png')
+        output_file = os.path.join("../e_results", f'comparison_{metric}__{args.testset}.png')
         print(f"Saving comparison for {metric} to: {output_file}")
         plt.savefig(output_file, bbox_inches='tight', dpi=300)
         plt.close()

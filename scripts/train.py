@@ -20,7 +20,7 @@ from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.distributed import init_process_group, destroy_process_group
 
-weights_dir = '../../../weights/cv'
+weights_dir = '../../../../weights/cv'
 
 parser = argparse.ArgumentParser(description='')
 parser.add_argument('--resume', default=None, type=str, help='path to latest checkpoint')
@@ -30,11 +30,13 @@ parser.add_argument('--dist', default=False, type=lambda x: x == 'True')
 parser.add_argument('--use_accelerate', action='store_true', help='`accelerate launch --multi_gpu train.py --use_accelerate`. Use accelerate for training, good for FP16/BF16/...')
 parser.add_argument('--train_set', type=str, help='Training set')
 parser.add_argument('--validation_set', type=str, help='Validation set')
+parser.add_argument('--save_last_epochs', default=10, type=int)
+parser.add_argument('--save_each_epochs', default=2, type=int)
 args = parser.parse_args()
 
 if args.use_accelerate:
     from accelerate import Accelerator, utils
-    mixed_precision = ['no', 'fp16', 'bf16', 'fp8'][1]
+    mixed_precision = 'fp16'
     accelerator = Accelerator(
         mixed_precision=mixed_precision,
         gradient_accumulation_steps=1,
@@ -77,6 +79,7 @@ logger_loss_idx = 1
 # logger.info("Model details:"); logger.info(model)
 # if args.use_accelerate and accelerator.mixed_precision != 'no':
 #     config.compile = False
+logger.info("Task: {}".format(config.task))
 logger.info("datasets: load_all={}, compile={}.".format(config.load_all, config.compile))
 logger.info("Other hyperparameters:"); logger.info(args)
 print('batch size:', config.batch_size)
@@ -107,8 +110,8 @@ def init_data_loaders(to_be_distributed):
     )
 
     validation_loader = prepare_dataloader(
-        MyData(datasets=validation_set, image_size=config.size, is_train=False),
-        config.batch_size, to_be_distributed=to_be_distributed, is_train=False
+        MyData(datasets=validation_set, image_size=config.size, is_train=True),
+        config.batch_size, to_be_distributed=to_be_distributed, is_train=True
     )
     print(len(train_loader), "batches of train dataloader {} have been created.".format(training_set))
     print(len(validation_loader), "batches of validation dataloader {} have been created.".format(validation_set))
@@ -152,7 +155,6 @@ def init_models_optimizers(epochs, to_be_distributed):
         milestones=[lde if lde > 0 else epochs + lde + 1 for lde in config.lr_decay_epochs],
         gamma=config.lr_decay_rate
     )
-    # logger.info("Optimizer details:"); logger.info(optimizer)
 
     return model, optimizer, lr_scheduler
 
@@ -167,19 +169,22 @@ class Trainer:
             self.train_loader, self.validation_loader, self.model, self.optimizer = accelerator.prepare(
                 self.train_loader, self.validation_loader, self.model, self.optimizer
             )
-        if config.out_ref:
-            #self.criterion_gdt = nn.BCELoss()
-            self.criterion_gdt = nn.BCEWithLogitsLoss()
 
         # Setting Losses
         self.pix_loss = PixLoss()
         self.cls_loss = ClsLoss()
         
+        if config.out_ref:
+            if self.pix_loss.bce_with_logits:
+                self.criterion_gdt = nn.BCEWithLogitsLoss()
+            else:
+                self.criterion_gdt = nn.BCELoss()
+
         # Others
         self.loss_log = AverageMeter()
         self.val_loss_log = AverageMeter()
 
-    def _batch(self, batch, training, batch_idx):
+    def _batch(self, batch, batch_idx, epoch_num, validation=False):
         if args.use_accelerate:
             inputs = batch[0]#.to(device)
             gts = batch[1]#.to(device)
@@ -189,38 +194,45 @@ class Trainer:
             gts = batch[1].to(device)
             class_labels = batch[2].to(device)
         self.optimizer.zero_grad()
-
-        if training:
-            model_output = self.model(inputs)
-            scaled_preds, class_preds_lst = model_output
-        else:
-            scaled_preds = self.model(inputs)
-            class_preds_lst = None
-        
-        if config.out_ref and training:
+        scaled_preds, class_preds_lst = self.model(inputs)
+        if config.out_ref:
             # Only unpack if in training mode and out_ref is enabled
             (outs_gdt_pred, outs_gdt_label), scaled_preds = scaled_preds
             for _idx, (_gdt_pred, _gdt_label) in enumerate(zip(outs_gdt_pred, outs_gdt_label)):
-                _gdt_pred = nn.functional.interpolate(_gdt_pred, size=_gdt_label.shape[2:], mode='bilinear', align_corners=True)#.sigmoid()
+                _gdt_pred = nn.functional.interpolate(_gdt_pred, size=_gdt_label.shape[2:], mode='bilinear', align_corners=True)
+                if not self.pix_loss.bce_with_logits:
+                    _gdt_pred = _gdt_pred.sigmoid()
                 _gdt_label = _gdt_label.sigmoid()
                 loss_gdt = self.criterion_gdt(_gdt_pred, _gdt_label) if _idx == 0 else self.criterion_gdt(_gdt_pred, _gdt_label) + loss_gdt
             # self.loss_dict['loss_gdt'] = loss_gdt.item()
-        if None in class_preds_lst if class_preds_lst else True:
+        if None in class_preds_lst:
             loss_cls = 0.
         else:
             loss_cls = self.cls_loss(class_preds_lst, class_labels) * 1.0
-            self.loss_dict['loss_cls'] = loss_cls.item()
+            if not validation:
+                self.loss_dict_train['loss_cls'] = loss_cls.item()
+            else:
+                self.loss_dict_validation['loss_cls'] = loss_cls.item()
         
         # Loss
         loss_pix = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
-        self.loss_dict['loss_pix'] = loss_pix.item()
+        if not validation:
+            if epoch_num>args.epochs+config.finetune_last_epochs:
+                self.loss_dict_train['loss_pix_rescaled'] = loss_pix.item()
+            else:
+                self.loss_dict_train['loss_pix'] = loss_pix.item()
+        else:
+            if epoch_num>args.epochs+config.finetune_last_epochs:
+                self.loss_dict_validation['loss_pix_rescaled'] = loss_pix.item()
+            else:
+                self.loss_dict_validation['loss_pix'] = loss_pix.item()
 
         # since there may be several losses for sal, the lambdas for them (lambdas_pix) are inside the loss.py
         loss = loss_pix + loss_cls
-        if config.out_ref and training:
+        if config.out_ref:
             loss = loss + loss_gdt
 
-        if training:
+        if not validation:
             self.loss_log.update(loss.item(), inputs.size(0))
             if args.use_accelerate:
                 loss = loss / accelerator.gradient_accumulation_steps
@@ -244,43 +256,41 @@ class Trainer:
     def train_epoch(self, epoch):
         global logger_loss_idx
         self.model.train()
-        self.loss_dict = {}
+        self.loss_dict_train = {}
         if epoch > args.epochs + config.finetune_last_epochs:
-            if config.task == 'Matting':
-                self.pix_loss.lambdas_pix_last['mae'] *= 1
-                self.pix_loss.lambdas_pix_last['mse'] *= 0.9
-                self.pix_loss.lambdas_pix_last['ssim'] *= 0.9
-            else:
-                self.pix_loss.lambdas_pix_last['bce'] *= 0
-                self.pix_loss.lambdas_pix_last['ssim'] *= 1
-                self.pix_loss.lambdas_pix_last['iou'] *= 0.5
-                self.pix_loss.lambdas_pix_last['mae'] *= 0.9
+            self.pix_loss.lambdas_pix_last['bce'] *= 0
+            self.pix_loss.lambdas_pix_last['ssim'] *= 1
+            self.pix_loss.lambdas_pix_last['iou'] *= 0.5
+            self.pix_loss.lambdas_pix_last['mae'] *= 0.9
+
+        if epoch==args.epochs+config.finetune_last_epochs+1:
+            self.loss_log = AverageMeter()
+            self.val_loss_log = AverageMeter()
 
         #Loop over the training batches
         for batch_idx, batch in enumerate(self.train_loader):
             # with nullcontext if not args.use_accelerate or accelerator.gradient_accumulation_steps <= 1 else accelerator.accumulate(self.model):
-            self._batch(batch, True, batch_idx)
+            self._batch(batch, batch_idx, epoch)
             # Logger
             if batch_idx % 10 == 0:
                 info_progress = 'Epoch[{0}/{1}] Iter[{2}/{3}].'.format(epoch, args.epochs, batch_idx, len(self.train_loader))
                 info_loss = 'Training Losses'
-                for loss_name, loss_value in self.loss_dict.items():
+                for loss_name, loss_value in self.loss_dict_train.items():
                     info_loss += ', {}: {:.3f}'.format(loss_name, loss_value)
                 logger.info(' '.join((info_progress, info_loss)))
         info_loss = '@==Final== Epoch[{0}/{1}]  Training Loss: {loss.avg:.3f}'.format(epoch, args.epochs, loss=self.loss_log)
         logger.info(info_loss)
         self.lr_scheduler.step()
 
-        self.model.eval()
-        self.loss_dict = {}
+        self.loss_dict_validation = {}
         #Loop over the validation batches
         for batch_idx, batch in enumerate(self.validation_loader):
-            self._batch(batch, False, batch_idx)
+            self._batch(batch, batch_idx, epoch, validation=True)
             # Logger
             if batch_idx % 3 == 0:
                 info_progress = 'Epoch[{0}/{1}] Iter[{2}/{3}].'.format(epoch, args.epochs, batch_idx, len(self.validation_loader))
                 info_loss = 'Validation Losses'
-                for loss_name, loss_value in self.loss_dict.items():
+                for loss_name, loss_value in self.loss_dict_validation.items():
                     info_loss += ', {}: {:.3f}'.format(loss_name, loss_value)
                 logger.info(' '.join((info_progress, info_loss)))
         info_loss = '@==Final== Epoch[{0}/{1}]  Validation Loss: {loss.avg:.3f}'.format(epoch, args.epochs, loss=self.val_loss_log)
@@ -301,7 +311,7 @@ def main():
         train_loss, val_loss = trainer.train_epoch(epoch)
         # Save checkpoint
         # DDP
-        if epoch >= args.epochs - config.save_last and epoch % config.save_step == 0:
+        if epoch >= args.epochs - args.save_last_epochs and epoch % args.save_each_epochs == 0:
             if save_to_cpu:
                 state_dict = {k: v.cpu() for k, v in trainer.model.state_dict().items()}
             # default behavior

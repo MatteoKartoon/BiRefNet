@@ -11,6 +11,7 @@ from skimage.measure import label
 
 _EPS = np.spacing(1)
 _TYPE = np.float64
+alpha_mid = 128
 
 
 def evaluator(gt_paths, pred_paths, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE','PA'], verbose=False):
@@ -138,7 +139,7 @@ def evaluator(gt_paths, pred_paths, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 
 
 def _prepare_data(pred: np.ndarray, gt: np.ndarray) -> tuple:
     #We must binarize the gt before using it in the metrics but in the future we should avoid this
-    gt = gt > 128
+    gt = gt > alpha_mid
     pred = pred / 255
     #if pred.max() != pred.min():
     #    pred = (pred - pred.min()) / (pred.max() - pred.min())
@@ -230,36 +231,8 @@ class PixelAccuracy(object):
         self.pixel_accuracies = []
 
     def step(self, pred: np.ndarray, gt: np.ndarray):
-        #pred, gt = _prepare_data(pred, gt)
         pixel_accuracy = self.cal_pixel_accuracy(pred, gt, threshold=10)
         self.pixel_accuracies.append(pixel_accuracy)
-
-    #def check_square(self, image: np.ndarray) -> np.ndarray:
-        #check if the incorrect pixels are in a square of incorrect pixels
-        #new_image = np.copy(image)
-        #rows, cols = image.shape
-
-        #for i in range(rows):
-        #    for j in range(cols):
-        #        if image[i, j]:  # If the pixel is correct, continue
-        #            new_image[i, j] = True
-        #        else:
-                    # Check if the pixel is part of a 5x5 incorrect pixel square
-                    #is_square = False
-                    #for k in range(-4, 5):
-                    #    for l in range(-4, 5):
-                    #        if (0 <= i + k < rows - 4) and (0 <= j + l < cols - 4):
-                                # Check the 5x5 block
-        #                        block = image[i + k:i + k + 5, j + l:j + l + 5]
-        #                        if np.all(~block):
-        #                            is_square = True
-        #                            break
-        #                if is_square:
-        #                    break
-
-                    # Set the pixel in the new image based on the square check
-        #            new_image[i, j] = not is_square  # Incorrect if I found a sqaure of incorrect pixels
-        #return new_image
 
     def cal_pixel_accuracy(self, image1: np.ndarray, image2: np.ndarray, threshold: float) -> float:
         """
@@ -285,10 +258,8 @@ class PixelAccuracy(object):
         eroded_pixels = cv2.erode(incorrect_pixels.astype(np.uint8), kernel, iterations=1)
         incorrect_pixels_new = eroded_pixels.astype(bool)
 
-
-
         #find the number of white pixels in the ground truth image
-        white_pixels = image2>127
+        white_pixels = image2>alpha_mid
 
         # Calculate the percentage of correct pixels
         correct_pixel_score = 1 - (np.sum(incorrect_pixels_new) / np.sum(white_pixels))
@@ -780,8 +751,8 @@ class MBAMeasure(object):
                 class_refined_prob = np.array(Image.fromarray(pred).resize((cmax-cmin, rmax-rmin), Image.BILINEAR))
                 refined[rmin:rmax, cmin:cmax] = class_refined_prob
         
-        pred = pred > 128
-        gt = gt > 128
+        pred = pred > alpha_mid
+        gt = gt > alpha_mid
 
         ba = self.cal_ba(pred, gt)
         self.bas.append(ba)
@@ -859,7 +830,7 @@ class BIoUMeasure(object):
         pred = self.mask_to_boundary(pred)
         gt = (gt * 255).astype(np.uint8)
         gt = self.mask_to_boundary(gt)
-        gt = gt > 128
+        gt = gt > alpha_mid
             
         bins = np.linspace(0, 256, 257)
         fg_hist, _ = np.histogram(pred[gt], bins=bins) # ture positive

@@ -14,7 +14,7 @@ from config import Config
 config = Config()
 
 
-def inference(model, data_loader_test, pred_root, method, testset, device=0):
+def inference(model, data_loader_test, pred_root, testset, device=0):
     model_training = model.training
     if model_training:
         model.eval()
@@ -22,8 +22,10 @@ def inference(model, data_loader_test, pred_root, method, testset, device=0):
 
     #get epoch from ckpt path name
     epoch = args.ckpt_path.split('_')[-1].split('.')[0]
+    #get the tr
+    training_date=args.ckpt_path.split('/')[0]
     #create the directory to save the predictions
-    saving_dir=os.path.join(pred_root,args.ckpt_path.split("/")[0]+"__epoch"+epoch,testset)
+    saving_dir=os.path.join(f"{pred_root}/{training_date}__epoch{epoch}/{testset}")
     print(f"Saving prediction in {saving_dir}...")
 
     for batch in tqdm(data_loader_test, total=len(data_loader_test)) if 1 or config.verbose_eval else data_loader_test:
@@ -44,8 +46,9 @@ def inference(model, data_loader_test, pred_root, method, testset, device=0):
                 align_corners=True
             )
             #prediction image path
-            where=os.path.join(saving_dir, label_paths[idx_sample].replace('\\', '/').split('/')[-1]) # test set dir + file name
-            save_tensor_img(res, where)
+            computed_prediction_name=label_paths[idx_sample].replace('\\', '/').split('/')[-1]
+            complete_saving_path=os.path.join(saving_dir, computed_prediction_name) # test set dir + file name
+            save_tensor_img(res, complete_saving_path)
     if model_training:
         model.train()
     return None
@@ -73,7 +76,6 @@ def main(args):
         model = model.to(device)
         inference(
             model, data_loader_test=data_loader_test, pred_root=args.pred_root,
-            method='--'.join([w.rstrip('.pth') for w in weights.split(os.sep)[-2:]]),
             testset=testset, device=config.device
         )
 
@@ -82,9 +84,9 @@ if __name__ == '__main__':
     # Parameter from command line
     parser = argparse.ArgumentParser(description='')
     
-    parser.add_argument('--ckpt_folder', default="ckpt/fine_tuning", type=str, help='model folder')
+    parser.add_argument('--ckpt_folder', default="../ckpt/fine_tuning", type=str, help='model folder')
     parser.add_argument('--ckpt_path', type=str, help='which checkpoint to use')
-    parser.add_argument('--pred_root', default='e_preds', type=str, help='Output folder')
+    parser.add_argument('--pred_root', default='../e_preds', type=str, help='Output folder')
     parser.add_argument('--testsets',type=str,help="which test set do inference on")
 
     args = parser.parse_args()

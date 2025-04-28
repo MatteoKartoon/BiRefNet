@@ -7,6 +7,8 @@ from evaluation.metrics import evaluator
 from config import Config
 from typing import List
 
+import datetime as dt
+from datetime import datetime as dt
 
 config = Config()
 
@@ -51,7 +53,9 @@ def do_eval(args):
     args.predictions = args.pred_path.split('+')
 
     #create a file to save the results
-    filename = os.path.join(args.save_dir, '{}_eval.txt'.format(config.task))
+    current_time = dt.now().strftime("%Y%m%d__%H%M")
+
+    filename = os.path.join(args.save_dir, 'eval_{}.txt'.format(current_time))
     tb = pt.PrettyTable()
     tb.vertical_char = '&'
     tb.field_names = ["Model", "Test set", "maxFm", "wFmeasure", 'MAE', 'MSE', "Smeasure", "meanEm", "HCE", "maxEm", "meanFm", "adpEm", "adpFm", 'mBA', 'maxBIoU', 'meanBIoU', 'PixAcc']
@@ -109,10 +113,10 @@ if __name__ == '__main__':
         default=os.path.join(config.data_root_dir, config.task))
     parser.add_argument(
         '--pred_root', type=str, help='prediction root',
-        default='./e_preds')
+        default='../e_preds')
     parser.add_argument(
         '--save_dir', type=str, help='candidate competitors',
-        default='./e_results')
+        default='../e_results')
     parser.add_argument(
         '--metrics', type=str, help='candidate competitors',
         default='+'.join(['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE','PA'])
