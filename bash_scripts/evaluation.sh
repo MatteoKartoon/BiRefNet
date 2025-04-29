@@ -1,0 +1,8 @@
+# Evaluation
+pred_path="20250407__1120__epoch294/test_generations_20250318_emotion+briaai/test_generations_20250318_emotion+photoroom/test_generations_20250318_emotion+20250423__1740__epoch294/test_generations_20250318_emotion+20250423__1740__epoch294/test_generations_20250326_pose+20250423__1740__epoch294/test_generations_20250411_ref_images+20250424__1219__epoch294/test_generations_20250318_emotion+20250424__1219__epoch294/test_generations_20250326_pose+20250424__1219__epoch294/test_generations_20250411_ref_images+20250424__1307__epoch294/test_generations_20250318_emotion+20250424__1307__epoch294/test_generations_20250326_pose+20250424__1307__epoch294/test_generations_20250411_ref_images"
+
+log_dir=../e_logs && mkdir ${log_dir}
+
+nohup python ../scripts/evaluations.py --pred_path ${pred_path} > ${log_dir}/eval_fine_tuning.out 2>&1 &
+
+echo Evaluation started at $(date)
