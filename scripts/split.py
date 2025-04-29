@@ -87,7 +87,7 @@ def get_common_elements_of_lists(image_list1: List[str], image_list2: List[str])
     """
     return [image_list1[i] for i in range(len(image_list1)) if image_list1[i] in image_list2]
 
-def split_dataset(train_ratio: float, val_ratio: float, test_ratio: float, input_dir: str, output_dir: str, gt_dir: str, dataset_name: str):
+def split_dataset(train_ratio: float, val_ratio: float, test_ratio: float, input_dir: str, output_dir: str, gt_dir: str, dataset_name: str, seed: int=0):
     """
     Split dataset into train, validation and test sets
     Args:
@@ -98,6 +98,7 @@ def split_dataset(train_ratio: float, val_ratio: float, test_ratio: float, input
         output_dir: output directory
         gt_dir: ground truth directory
         dataset_name: name of the dataset
+        seed: seed for the random list shuffling
     """
     print("Splitting dataset {} with train_ratio: {}, val_ratio: {}, test_ratio: {}, from the folder {}, to the folder {}, taking as ground truth folder {}".format(dataset_name,train_ratio, val_ratio, test_ratio, input_dir, output_dir, gt_dir))
     
@@ -139,7 +140,7 @@ def split_dataset(train_ratio: float, val_ratio: float, test_ratio: float, input
     rename_picture_list(found_im,original_images,input_dir)
 
     # Shuffle the images to split them randomly
-    random.seed(dataset_name)
+    random.seed(seed)
     random.shuffle(images)
 
     # Split the images

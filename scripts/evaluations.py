@@ -3,8 +3,8 @@ import argparse
 from glob import glob
 import prettytable as pt
 
-from evaluation.metrics import evaluator
-from config import Config
+from birefnet.evaluation.metrics import evaluator
+from birefnet.config import Config
 from typing import List
 
 import datetime as dt
@@ -55,7 +55,7 @@ def do_eval(args):
     #create a file to save the results
     current_time = dt.now().strftime("%Y%m%d__%H%M")
 
-    filename = os.path.join(args.save_dir, 'eval_{}.txt'.format(current_time))
+    filename = f"{args.save_dir}/eval_{current_time}.txt"
     tb = pt.PrettyTable()
     tb.vertical_char = '&'
     tb.field_names = ["Model", "Test set", "maxFm", "wFmeasure", 'MAE', 'MSE', "Smeasure", "meanEm", "HCE", "maxEm", "meanFm", "adpEm", "adpFm", 'mBA', 'maxBIoU', 'meanBIoU', 'PixAcc']

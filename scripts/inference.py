@@ -4,11 +4,12 @@ from glob import glob
 from tqdm import tqdm
 import cv2
 import torch
+import re
 
-from dataset import MyData
-from models.birefnet import BiRefNet, BiRefNetC2F
-from utils import save_tensor_img, check_state_dict
-from config import Config
+from birefnet.dataset import MyData
+from birefnet.models.birefnet import BiRefNet, BiRefNetC2F
+from birefnet.utils import save_tensor_img, check_state_dict
+from birefnet.config import Config
 
 
 config = Config()
@@ -19,13 +20,13 @@ def inference(model, data_loader_test, pred_root, testset, device=0):
     if model_training:
         model.eval()
     model.half()
-
+    assert validate_format(args.ckpt_path), "Checkpoint path must be in the format dddddddd__dddd/epoch_ddd.pth where d is a digit"
     #get epoch from ckpt path name
     epoch = args.ckpt_path.split('_')[-1].split('.')[0]
     #get the tr
     training_date=args.ckpt_path.split('/')[0]
     #create the directory to save the predictions
-    saving_dir=os.path.join(f"{pred_root}/{training_date}__epoch{epoch}/{testset}")
+    saving_dir=f"{pred_root}/{training_date}__epoch{epoch}/{testset}"
     print(f"Saving prediction in {saving_dir}...")
 
     for batch in tqdm(data_loader_test, total=len(data_loader_test)) if 1 or config.verbose_eval else data_loader_test:
@@ -52,6 +53,15 @@ def inference(model, data_loader_test, pred_root, testset, device=0):
     if model_training:
         model.train()
     return None
+
+
+def validate_format(value):
+    """
+    Validates if a string matches the format dddddddd__dddd/epoch_ddd.pth where d is a digit
+    Returns True if the format is valid, False otherwise
+    """
+    pattern = r'^\d{8}__\d{4}/epoch_\d{3}\.pth$'
+    return bool(re.match(pattern, value))
 
 
 def main(args):

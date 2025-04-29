@@ -4,7 +4,6 @@ output_folderpath="/home/matteo/ai-research/rembg_finetuning/datasets/dis/fine_t
 high_threshold=255
 low_threshold=0
 
-cd ../scripts
 # Call the compute_gt script with the provided arguments
-python compute_mask.py --input $input_folderpath --output $output_folderpath --low_threshold $low_threshold --high_threshold $high_threshold
+python ../scripts/compute_mask.py --input $input_folderpath --output $output_folderpath --low_threshold $low_threshold --high_threshold $high_threshold
 

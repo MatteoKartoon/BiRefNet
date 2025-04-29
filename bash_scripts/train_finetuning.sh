@@ -11,8 +11,6 @@ save_last_epochs=10
 save_each_epochs=2
 task="fine_tuning"
 
-cd ../scripts
-python3 config.py
 # Train
 nproc_per_node=$(echo ${CUDA_VISIBLE_DEVICES} | grep -o "," | wc -l)
 
@@ -22,7 +20,7 @@ to_be_distributed=`echo ${nproc_per_node} | awk '{if($e > 0) print "True"; else 
 echo Training started at $(date)
 
 accelerate launch --multi_gpu --num_processes $((nproc_per_node+1)) \
-train.py --ckpt_dir ../ckpt/${ckpt_dir} --epochs ${epochs} \
+../scripts/train.py --ckpt_dir ../ckpt/${ckpt_dir} --epochs ${epochs} \
     --dist ${to_be_distributed} \
     --resume ../ckpt/BiRefNet-general-epoch_244.pth \
     --train_set ${train_set} \

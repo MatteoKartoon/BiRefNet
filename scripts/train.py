@@ -10,11 +10,11 @@ from datetime import datetime as dt
 if tuple(map(int, torch.__version__.split('+')[0].split(".")[:3])) >= (2, 5, 0):
     os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
-from config import Config
-from loss import PixLoss, ClsLoss
-from dataset import MyData
-from models.birefnet import BiRefNet, BiRefNetC2F
-from utils import Logger, AverageMeter, set_seed, check_state_dict
+from birefnet.config import Config
+from birefnet.loss import PixLoss, ClsLoss
+from birefnet.dataset import MyData
+from birefnet.models.birefnet import BiRefNet, BiRefNetC2F
+from birefnet.utils import Logger, AverageMeter, set_seed, check_state_dict
 
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -84,7 +84,7 @@ logger.info("datasets: load_all={}, compile={}.".format(config.load_all, config.
 logger.info("Other hyperparameters:"); logger.info(args)
 print('batch size:', config.batch_size)
 
-from dataset import custom_collate_fn
+from birefnet.dataset import custom_collate_fn
 
 def prepare_dataloader(dataset: torch.utils.data.Dataset, batch_size: int, to_be_distributed=False, is_train=True):
     # Prepare dataloaders
@@ -195,6 +195,10 @@ class Trainer:
             class_labels = batch[2].to(device)
         self.optimizer.zero_grad()
         scaled_preds, class_preds_lst = self.model(inputs)
+        if validation:
+            loss_dict=self.loss_dict_validation
+        else:
+            loss_dict=self.loss_dict_train
         if config.out_ref:
             # Only unpack if in training mode and out_ref is enabled
             (outs_gdt_pred, outs_gdt_label), scaled_preds = scaled_preds
@@ -209,23 +213,14 @@ class Trainer:
             loss_cls = 0.
         else:
             loss_cls = self.cls_loss(class_preds_lst, class_labels) * 1.0
-            if not validation:
-                self.loss_dict_train['loss_cls'] = loss_cls.item()
-            else:
-                self.loss_dict_validation['loss_cls'] = loss_cls.item()
+            loss_dict['loss_cls'] = loss_cls.item()
         
         # Loss
         loss_pix = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
-        if not validation:
-            if epoch_num>args.epochs+config.finetune_last_epochs:
-                self.loss_dict_train['loss_pix_rescaled'] = loss_pix.item()
-            else:
-                self.loss_dict_train['loss_pix'] = loss_pix.item()
+        if epoch_num>args.epochs+config.finetune_last_epochs:
+            loss_dict['loss_pix_rescaled'] = loss_pix.item()
         else:
-            if epoch_num>args.epochs+config.finetune_last_epochs:
-                self.loss_dict_validation['loss_pix_rescaled'] = loss_pix.item()
-            else:
-                self.loss_dict_validation['loss_pix'] = loss_pix.item()
+            loss_dict['loss_pix'] = loss_pix.item()
 
         # since there may be several losses for sal, the lambdas for them (lambdas_pix) are inside the loss.py
         loss = loss_pix + loss_cls
@@ -237,8 +232,10 @@ class Trainer:
             if args.use_accelerate:
                 loss = loss / accelerator.gradient_accumulation_steps
                 accelerator.backward(loss)
+                #accelerator.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
             else:
                 loss.backward()
+                #torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
             self.optimizer.step()
 
             # Print gradient norm to monitor training
@@ -262,6 +259,7 @@ class Trainer:
             self.pix_loss.lambdas_pix_last['ssim'] *= 1
             self.pix_loss.lambdas_pix_last['iou'] *= 0.5
             self.pix_loss.lambdas_pix_last['mae'] *= 0.9
+            print("Loss computation updated for the last epochs")
 
         if epoch==args.epochs+config.finetune_last_epochs+1:
             self.loss_log = AverageMeter()

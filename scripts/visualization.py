@@ -14,8 +14,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
-from evaluation.metrics import evaluator
-from config import Config
+from birefnet.evaluation.metrics import evaluator
+from birefnet.config import Config
 
 config = Config()
 
@@ -204,7 +204,7 @@ def do_visualization(model_paths: list[str], gt_paths: list[str], image_paths: l
 
         plt.tight_layout()
         # Save the figure
-        output_file = os.path.join("../e_results", f'visualization__{model_path}__{args.testset}.png')
+        output_file = f"../e_results/visualization__{model_path}__{args.testset}.png"
         print(f"Saving visualization to: {output_file}")
         plt.savefig(output_file, bbox_inches='tight', dpi=300)        
         plt.close()
@@ -298,7 +298,7 @@ def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], 
         plt.tight_layout()
 
         #save the figure
-        output_file = os.path.join("../e_results", f'comparison_{metric}__{args.testset}.png')
+        output_file = f"../e_results/comparison_{metric}__{args.testset}.png"
         print(f"Saving comparison for {metric} to: {output_file}")
         plt.savefig(output_file, bbox_inches='tight', dpi=300)
         plt.close()
