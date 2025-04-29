@@ -129,7 +129,7 @@ class PixLoss(nn.Module):
     def __init__(self):
         super(PixLoss, self).__init__()
         self.config = Config()
-        self.lambdas_pix_last = {key: self.config.lambdas_pix_last[key] * self.config.lambdas_pix_last_activated[key] for key in self.config.lambdas_pix_last}
+        self.lambdas_pix_last = {key: self.config.lambdas_pix_last[key] if self.config.lambdas_pix_last_activated[key] else 0. for key in self.config.lambdas_pix_last}
         self.bce_with_logits=True
         self.criterions_last = {}
         if 'bce' in self.lambdas_pix_last and self.lambdas_pix_last['bce']:

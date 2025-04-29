@@ -195,10 +195,7 @@ class Trainer:
             class_labels = batch[2].to(device)
         self.optimizer.zero_grad()
         scaled_preds, class_preds_lst = self.model(inputs)
-        if validation:
-            loss_dict=self.loss_dict_validation
-        else:
-            loss_dict=self.loss_dict_train
+        loss_dict=self.loss_dict_validation if validation else self.loss_dict_train
         if config.out_ref:
             # Only unpack if in training mode and out_ref is enabled
             (outs_gdt_pred, outs_gdt_label), scaled_preds = scaled_preds
@@ -232,10 +229,8 @@ class Trainer:
             if args.use_accelerate:
                 loss = loss / accelerator.gradient_accumulation_steps
                 accelerator.backward(loss)
-                #accelerator.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
             else:
                 loss.backward()
-                #torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
             self.optimizer.step()
 
             # Print gradient norm to monitor training

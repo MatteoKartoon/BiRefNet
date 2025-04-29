@@ -20,7 +20,8 @@ def inference(model, data_loader_test, pred_root, testset, device=0):
     if model_training:
         model.eval()
     model.half()
-    assert validate_format(args.ckpt_path), "Checkpoint path must be in the format dddddddd__dddd/epoch_ddd.pth where d is a digit"
+    #Check that the format is the right one in the path name
+    validate_format(args.ckpt_path)
     #get epoch from ckpt path name
     epoch = args.ckpt_path.split('_')[-1].split('.')[0]
     #get the tr
@@ -61,7 +62,7 @@ def validate_format(value):
     Returns True if the format is valid, False otherwise
     """
     pattern = r'^\d{8}__\d{4}/epoch_\d{3}\.pth$'
-    return bool(re.match(pattern, value))
+    assert bool(re.match(pattern, value)), "Checkpoint path must be in the format dddddddd__dddd/epoch_ddd.pth where d is a digit"
 
 
 def main(args):
