@@ -13,6 +13,8 @@ class Config():
 
         # TASK settings
         self.task = 'fine_tuning'
+
+        self.run_name = 'Single plot per training'
   
         self.prompt4loc = 'dense'
 
