@@ -69,6 +69,7 @@ class Config():
         self.lr_decay_epochs = [1e5]    # Set to negative N to decay the lr in the last N-th epoch.
         self.lr_decay_rate = 0.5
         # Loss
+        self.bce_with_logits = True
         self.lambdas_pix_last = {
             'bce': 100,
             'iou': 0.5,

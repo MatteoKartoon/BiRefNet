@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from datetime import datetime as dt
+import wandb
 
 if tuple(map(int, torch.__version__.split('+')[0].split(".")[:3])) >= (2, 5, 0):
     os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
@@ -50,7 +51,30 @@ if args.use_accelerate:
 config = Config()
 if config.rand_seed:
     set_seed(config.rand_seed)
-    
+
+if accelerator.is_main_process:
+    wandb.init(
+    # Set the project where this run will be logged
+    project="BiRefNet finetuning",
+    # We pass a run name (otherwise it’ll be randomly assigned, like sunshine-lollypop-10)
+    name=f"Single plot per training",
+    # Track hyperparameters and run metadata
+    config={
+    "learning_rate": config.lr,
+    "architecture": "BiRefNet",
+    "epochs": args.epochs,
+    "batch_size": config.batch_size,
+    "optimizer": config.optimizer,
+    "train_set": args.train_set,
+    "validation_set": args.validation_set,
+    "save_last_epochs": args.save_last_epochs,
+    "save_each_epochs": args.save_each_epochs,
+    "finetune_last_epochs": config.finetune_last_epochs,
+    "pixel loss lambdas": config.lambdas_pix_last,
+    "pixel loss lambdas activated": config.lambdas_pix_last_activated,
+    "bce_with_logits": config.bce_with_logits,
+    })
+
 # DDP
 to_be_distributed = args.dist
 if to_be_distributed:
@@ -175,7 +199,7 @@ class Trainer:
         self.cls_loss = ClsLoss()
         
         if config.out_ref:
-            if self.pix_loss.bce_with_logits:
+            if config.bce_with_logits:
                 self.criterion_gdt = nn.BCEWithLogitsLoss()
             else:
                 self.criterion_gdt = nn.BCELoss()
@@ -201,7 +225,7 @@ class Trainer:
             (outs_gdt_pred, outs_gdt_label), scaled_preds = scaled_preds
             for _idx, (_gdt_pred, _gdt_label) in enumerate(zip(outs_gdt_pred, outs_gdt_label)):
                 _gdt_pred = nn.functional.interpolate(_gdt_pred, size=_gdt_label.shape[2:], mode='bilinear', align_corners=True)
-                if not self.pix_loss.bce_with_logits:
+                if not config.bce_with_logits:
                     _gdt_pred = _gdt_pred.sigmoid()
                 _gdt_label = _gdt_label.sigmoid()
                 loss_gdt = self.criterion_gdt(_gdt_pred, _gdt_label) if _idx == 0 else self.criterion_gdt(_gdt_pred, _gdt_label) + loss_gdt
@@ -242,6 +266,8 @@ class Trainer:
                     total_norm += param_norm.item() ** 2
                 total_norm = total_norm ** 0.5
                 print("Gradient norm:", total_norm)
+                if accelerator.is_main_process:
+                    wandb.log({"Gradient norm": total_norm})
         else:
             self.val_loss_log.update(loss.item(), inputs.size(0))
     
@@ -260,6 +286,7 @@ class Trainer:
             self.loss_log = AverageMeter()
             self.val_loss_log = AverageMeter()
 
+        epoch_losses_train=[]
         #Loop over the training batches
         for batch_idx, batch in enumerate(self.train_loader):
             # with nullcontext if not args.use_accelerate or accelerator.gradient_accumulation_steps <= 1 else accelerator.accumulate(self.model):
@@ -271,11 +298,26 @@ class Trainer:
                 for loss_name, loss_value in self.loss_dict_train.items():
                     info_loss += ', {}: {:.3f}'.format(loss_name, loss_value)
                 logger.info(' '.join((info_progress, info_loss)))
-        info_loss = '@==Final== Epoch[{0}/{1}]  Training Loss: {loss.avg:.3f}'.format(epoch, args.epochs, loss=self.loss_log)
+        info_loss = '@==Final== Epoch[{0}/{1}]  Training Loss Device {2}: {loss.avg:.3f}'.format(epoch, args.epochs, accelerator.device, loss=self.loss_log)
         logger.info(info_loss)
+        epoch_losses_train.append(self.loss_log.avg)
+        # After epoch
+        # Stack and gather losses from all processes
+        epoch_losses_tensor = torch.tensor(epoch_losses_train, device=accelerator.device)
+        all_losses = accelerator.gather(epoch_losses_tensor)
+
+        # Compute average loss on main process
+        if accelerator.is_main_process:
+            avg_loss = all_losses.mean().item()
+            logger.info('@==Final== Epoch[{0}/{1}]  Average Training Loss: {loss:.3f}'.format(epoch, args.epochs, loss=avg_loss))
+            wandb.log({"Training Loss": avg_loss})
+        # Synchronize before next steps
+        accelerator.wait_for_everyone()
+        
         self.lr_scheduler.step()
 
         self.loss_dict_validation = {}
+        epoch_losses_valid=[]
         #Loop over the validation batches
         for batch_idx, batch in enumerate(self.validation_loader):
             self._batch(batch, batch_idx, epoch, validation=True)
@@ -286,9 +328,21 @@ class Trainer:
                 for loss_name, loss_value in self.loss_dict_validation.items():
                     info_loss += ', {}: {:.3f}'.format(loss_name, loss_value)
                 logger.info(' '.join((info_progress, info_loss)))
-        info_loss = '@==Final== Epoch[{0}/{1}]  Validation Loss: {loss.avg:.3f}'.format(epoch, args.epochs, loss=self.val_loss_log)
+        info_loss = '@==Final== Epoch[{0}/{1}]  Validation Loss Device {2}: {loss.avg:.3f}'.format(epoch, args.epochs, accelerator.device, loss=self.val_loss_log)
         logger.info(info_loss)
+        epoch_losses_valid.append(self.val_loss_log.avg)
+        # After epoch
+        # Stack and gather losses from all processes
+        epoch_losses_tensor = torch.tensor(epoch_losses_valid, device=accelerator.device)
+        all_losses = accelerator.gather(epoch_losses_tensor)
 
+        # Compute average loss on main process
+        if accelerator.is_main_process:
+            avg_loss = all_losses.mean().item()
+            logger.info('@==Final== Epoch[{0}/{1}]  Average Validation Loss: {loss:.3f}'.format(epoch, args.epochs, loss=avg_loss))
+            wandb.log({"Validation Loss": avg_loss})
+        # Synchronize before next steps
+        accelerator.wait_for_everyone()
         return self.loss_log.avg, self.val_loss_log.avg
 
 

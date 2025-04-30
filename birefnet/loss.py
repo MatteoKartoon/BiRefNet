@@ -130,10 +130,9 @@ class PixLoss(nn.Module):
         super(PixLoss, self).__init__()
         self.config = Config()
         self.lambdas_pix_last = {key: self.config.lambdas_pix_last[key] if self.config.lambdas_pix_last_activated[key] else 0. for key in self.config.lambdas_pix_last}
-        self.bce_with_logits=True
         self.criterions_last = {}
         if 'bce' in self.lambdas_pix_last and self.lambdas_pix_last['bce']:
-            if self.bce_with_logits:
+            if self.config.bce_with_logits:
                 self.criterions_last['bce'] = nn.BCEWithLogitsLoss()
             else:
                 self.criterions_last['bce'] = nn.BCELoss()
@@ -160,7 +159,7 @@ class PixLoss(nn.Module):
             if pred_lvl.shape != gt.shape:
                 pred_lvl = nn.functional.interpolate(pred_lvl, size=gt.shape[2:], mode='bilinear', align_corners=True)
             for criterion_name, criterion in self.criterions_last.items():
-                if criterion_name == 'bce' and self.bce_with_logits:
+                if criterion_name == 'bce' and self.config.bce_with_logits:
                     _loss = criterion(pred_lvl, gt) * self.lambdas_pix_last[criterion_name]
                 else:
                     _loss = criterion(pred_lvl.sigmoid(), gt) * self.lambdas_pix_last[criterion_name]
