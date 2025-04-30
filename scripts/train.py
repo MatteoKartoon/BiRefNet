@@ -56,6 +56,7 @@ if accelerator.is_main_process:
     wandb.init(
     # Set the project where this run will be logged
     project="BiRefNet finetuning",
+    dir="..",
     # We pass a run name (otherwise it’ll be randomly assigned, like sunshine-lollypop-10)
     name=f"Single plot per training",
     # Track hyperparameters and run metadata
