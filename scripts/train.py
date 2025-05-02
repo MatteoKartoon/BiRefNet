@@ -218,7 +218,7 @@ class Trainer:
     def iteration_over_batches_train(self, epoch,loader, dict_losses, log_each_steps):
         #Loop over the training batches
         for batch_idx, batch in enumerate(loader):
-            step_idx=batch_idx+len(loader)*(epoch-config.start_epoch+1)
+            step_idx=batch_idx+len(loader)*(epoch-config.start_epoch)
             self._batch(batch, batch_idx, epoch)
             # Logger
             if batch_idx % log_each_steps == 0:
@@ -313,7 +313,6 @@ class Trainer:
 
             # Print gradient norm to monitor training
             if batch_idx % 15 == 0:
-                step_idx=batch_idx+len(self.train_loader)*(epoch_num-config.start_epoch+1)
                 total_norm = 0
                 for p in self.model.parameters():
                     if p.grad is not None:
@@ -330,7 +329,7 @@ class Trainer:
                         align_corners=True
                     )
                     pred_image=wandb.Image(res, caption="Predicted")
-                    wandb.log({"GT/Prediction": [gt_image, pred_image]})
+                    wandb.log({"GT and prediction": [gt_image, pred_image]})
         else:
             self.val_loss_log.update(loss.item(), inputs.size(0))
     
