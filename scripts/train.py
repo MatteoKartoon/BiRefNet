@@ -286,6 +286,15 @@ class Trainer:
                 print("Gradient norm:", total_norm)
                 if accelerator.is_main_process:
                     wandb.log({"stept": step_idx, "Gradient norm": total_norm})
+                    gt_image=wandb.Image(gts[0], caption="Ground Truth")
+                    res = torch.nn.functional.interpolate(
+                        scaled_preds[3][0].sigmoid().unsqueeze(0),
+                        size=gts[0].shape[1:],
+                        mode='bilinear',
+                        align_corners=True
+                    )
+                    pred_image=wandb.Image(res, caption="Predicted")
+                    wandb.log({"gt_image": gt_image, "pred_image": pred_image})
         else:
             self.val_loss_log.update(loss.item(), inputs.size(0))
     
