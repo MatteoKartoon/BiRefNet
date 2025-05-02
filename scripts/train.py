@@ -188,12 +188,13 @@ class Trainer:
         self.loss_log = AverageMeter()
         self.val_loss_log = AverageMeter()
 
-        self.step_counter=0
-
-    def iteration_over_batches(self, epoch,loader, dict_losses, log_losses, log_each_steps, validation=False, log_task="Training"):
+    def iteration_over_batches(self, epoch,loader, dict_losses, log_losses, log_each_steps, validation=False):
+        log_task = "Training" if not validation else "Validation"
+        step_metric_name="stept" if not validation else "stepv"
+        metric_name="Training Loss" if not validation else "Validation Loss"
         #Loop over the training batches
         for batch_idx, batch in enumerate(loader):
-            # with nullcontext if not args.use_accelerate or accelerator.gradient_accumulation_steps <= 1 else accelerator.accumulate(self.model):
+            step_idx=batch_idx+len(loader)*(epoch-config.start_epoch+1)
             self._batch(batch, batch_idx, epoch, validation)
             # Logger
             if batch_idx % log_each_steps == 0:
@@ -203,7 +204,7 @@ class Trainer:
                     info_loss += f', {loss_name}: {loss_value}'
                 logger.info(' '.join((info_progress, info_loss)))
                 if accelerator.is_main_process:
-                    wandb.log({f"{log_task} Loss": log_losses.avg}, step=self.step_counter)
+                    wandb.log({step_metric_name: step_idx,metric_name: log_losses.avg})
                 accelerator.wait_for_everyone()
 
     def epoch_final_logs(self,epoch, log_losses, log_task="Training"):
@@ -220,7 +221,7 @@ class Trainer:
         if accelerator.is_main_process:
             avg_loss = all_losses.mean().item()
             logger.info(f'@==Final== Epoch[{epoch}/{args.epochs}]  Average {log_task} Loss: {avg_loss}')
-            wandb.log({f"{log_task} Loss": avg_loss}, step=self.step_counter)
+            wandb.log({"epoch": epoch,f"Epoch Final {log_task} Loss": avg_loss})
         # Synchronize before next steps
         accelerator.wait_for_everyone()
 
@@ -234,7 +235,6 @@ class Trainer:
             gts = batch[1].to(device)
             class_labels = batch[2].to(device)
         self.optimizer.zero_grad()
-        self.step_counter += 1
         scaled_preds, class_preds_lst = self.model(inputs)
         loss_dict=self.loss_dict_validation if validation else self.loss_dict_train
         if config.out_ref:
@@ -276,6 +276,7 @@ class Trainer:
 
             # Print gradient norm to monitor training
             if batch_idx % 10 == 0:
+                step_idx=batch_idx+len(self.train_loader)*(epoch_num-config.start_epoch+1)
                 total_norm = 0
                 for p in self.model.parameters():
                     if p.grad is not None:
@@ -284,7 +285,7 @@ class Trainer:
                 total_norm = total_norm ** 0.5
                 print("Gradient norm:", total_norm)
                 if accelerator.is_main_process:
-                    wandb.log({"Gradient norm": total_norm}, step=self.step_counter)
+                    wandb.log({"stept": step_idx, "Gradient norm": total_norm})
         else:
             self.val_loss_log.update(loss.item(), inputs.size(0))
     
@@ -303,14 +304,14 @@ class Trainer:
             self.loss_log = AverageMeter()
             self.val_loss_log = AverageMeter()
 
-        self.iteration_over_batches(epoch, self.train_loader, self.loss_dict_train, self.loss_log, 10)
-        self.epoch_final_logs(epoch, self.loss_log)
+        self.iteration_over_batches(epoch, self.train_loader, self.loss_dict_train, self.loss_log, log_each_steps=10, validation=False)
+        self.epoch_final_logs(epoch, self.loss_log, log_task="Training")
         
         self.lr_scheduler.step()
 
         self.loss_dict_validation = {}
 
-        self.iteration_over_batches(epoch, self.validation_loader, self.loss_dict_validation, self.val_loss_log, 3, validation=True, log_task="Validation")
+        self.iteration_over_batches(epoch, self.validation_loader, self.loss_dict_validation, self.val_loss_log, log_each_steps=3, validation=True)
         self.epoch_final_logs(epoch, self.val_loss_log, log_task="Validation")
 
         return self.loss_log.avg, self.val_loss_log.avg

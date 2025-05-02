@@ -37,6 +37,7 @@ class Config():
         self.squeeze_block = 'BasicDecBlk_x1'
         self.dec_blk = 'BasicDecBlk'
         self.batch_size = 2
+        self.start_epoch=245
         
 
         self.finetune_last_epochs =-20
