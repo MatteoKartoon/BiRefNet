@@ -32,14 +32,9 @@ def init_wandb(config,args):
         "bce_with_logits": config.bce_with_logits,
         })
         
-        wandb.define_metric("epoch")
-        wandb.define_metric("Epoch Final Training Loss", step_metric="epoch")
-        wandb.define_metric("Epoch Final Validation Loss", step_metric="epoch")
-        wandb.define_metric("stept", hidden=True)
-        wandb.define_metric("Gradient norm", step_metric="stept")
-        wandb.define_metric("Training Loss", step_metric="stept")
-        wandb.define_metric("stepv", hidden=True)
-        wandb.define_metric("Validation Loss", step_metric="stepv")
+        wandb.define_metric("Gradient norm")
+        wandb.define_metric("Training Loss")
+        wandb.define_metric("Validation Loss")
 
 def path_to_image(path, size=(1024, 1024), color_type=['rgb', 'gray'][0]):
     if color_type.lower() == 'rgb':

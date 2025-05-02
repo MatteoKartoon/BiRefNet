@@ -14,7 +14,7 @@ class Config():
         # TASK settings
         self.task = 'fine_tuning'
 
-        self.run_name = 'Single plot per training'
+        self.run_name = 'Prediction logs'
   
         self.prompt4loc = 'dense'
 

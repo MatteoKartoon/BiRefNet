@@ -188,40 +188,77 @@ class Trainer:
         self.loss_log = AverageMeter()
         self.val_loss_log = AverageMeter()
 
-    def iteration_over_batches(self, epoch,loader, dict_losses, log_losses, log_each_steps, validation=False):
-        log_task = "Training" if not validation else "Validation"
-        step_metric_name="stept" if not validation else "stepv"
-        metric_name="Training Loss" if not validation else "Validation Loss"
+    def iteration_over_batches_validation(self, epoch,loader, dict_losses, info_progress=None, step_idx=None, training_result=None):
+        #Initialize a dictionary containing the average of the losses
+        dict_losses_average={k:0 for k in dict_losses.keys()}
+        #Loop over the batches
+        for batch_idx, batch in enumerate(loader):
+            self._batch(batch, batch_idx, epoch, validation=True)
+            # Logger
+            for loss_name, loss_value in dict_losses.items():
+                dict_losses_average[loss_name]+=loss_value
+        #Compute the average of the losses over the validation set
+        for loss_name, loss_value in dict_losses_average.items():
+            dict_losses_average[loss_name]/=len(loader)
+        #For each loss type, compute the average between the devices
+        info_loss = f'Validation Losses'
+        for loss_name, loss_value in dict_losses_average.items():
+            loss_general_value=self.average_between_devices(loss_value)
+            accelerator.wait_for_everyone()
+            if loss_general_value is not None:
+                if loss_name=="loss_pix":
+                    loss_general_value_pixel=loss_general_value
+                #add to the print string
+                info_loss += f', {loss_name}: {loss_general_value}'
+                logger.info(' '.join((info_progress, info_loss)))
+        if accelerator.is_main_process:
+            wandb.log({"Validation Loss": loss_general_value_pixel, "Training Loss": training_result},step=step_idx)
+        accelerator.wait_for_everyone() #Log the average of the losses over the validation set
+
+    def iteration_over_batches_train(self, epoch,loader, dict_losses, log_each_steps):
         #Loop over the training batches
         for batch_idx, batch in enumerate(loader):
             step_idx=batch_idx+len(loader)*(epoch-config.start_epoch+1)
-            self._batch(batch, batch_idx, epoch, validation)
+            self._batch(batch, batch_idx, epoch)
             # Logger
             if batch_idx % log_each_steps == 0:
                 info_progress = f'Epoch[{epoch}/{args.epochs}] Iter[{batch_idx}/{len(loader)}].'
-                info_loss = f'{log_task} Losses'
+                info_loss = f'Training Losses'
                 for loss_name, loss_value in dict_losses.items():
-                    info_loss += f', {loss_name}: {loss_value}'
-                logger.info(' '.join((info_progress, info_loss)))
-                if accelerator.is_main_process:
-                    wandb.log({step_metric_name: step_idx,metric_name: log_losses.avg})
-                accelerator.wait_for_everyone()
+                    #For each loss type, compute the average betwwen the devices
+                    loss_general_value=self.average_between_devices(loss_value)
+                    accelerator.wait_for_everyone()
+                    loss_general_value_pixel=None
+                    if loss_general_value is not None:
+                        if loss_name=="loss_pix":
+                            loss_general_value_pixel=loss_general_value
+                        #add to the print string
+                        info_loss += f', {loss_name}: {loss_general_value}'
+                        logger.info(' '.join((info_progress, info_loss)))
+                self.loss_dict_validation = {k:0 for k in self.loss_dict_train.keys()}
+                self.iteration_over_batches_validation(epoch,self.validation_loader, self.loss_dict_validation, info_progress, step_idx, loss_general_value_pixel)
 
-    def epoch_final_logs(self,epoch, log_losses, log_task="Training"):
-        epoch_losses=[]
-        #Print the final epoch logs
-        info_loss = f'@==Final== Epoch[{epoch}/{args.epochs}]  {log_task} Loss Device {accelerator.device}: {log_losses.avg}'
-        logger.info(info_loss)
-        epoch_losses.append(log_losses.avg)
-        #gather losses from all processes
-        epoch_losses_tensor = torch.tensor(epoch_losses, device=accelerator.device)
-        all_losses = accelerator.gather(epoch_losses_tensor)
+    def average_between_devices(self, values):
+        devices_values=[]
+        devices_values.append(values)
+        #gather values from all processes
+        values_tensor = torch.tensor(devices_values, device=accelerator.device)
+        all_values = accelerator.gather(values_tensor)
 
         # Compute average loss on main process
         if accelerator.is_main_process:
-            avg_loss = all_losses.mean().item()
+            avg_loss = all_values.mean().item()
+            return avg_loss
+        else:
+            return None
+
+    def epoch_final_logs(self,epoch, log_losses, log_task="Training"):
+        #Print the final epoch logs
+        info_loss = f'@==Final== Epoch[{epoch}/{args.epochs}]  {log_task} Loss Device {accelerator.device}: {log_losses.avg}'
+        logger.info(info_loss)
+        avg_loss = self.average_between_devices(log_losses.avg)
+        if avg_loss is not None:
             logger.info(f'@==Final== Epoch[{epoch}/{args.epochs}]  Average {log_task} Loss: {avg_loss}')
-            wandb.log({"epoch": epoch,f"Epoch Final {log_task} Loss": avg_loss})
         # Synchronize before next steps
         accelerator.wait_for_everyone()
 
@@ -275,7 +312,7 @@ class Trainer:
             self.optimizer.step()
 
             # Print gradient norm to monitor training
-            if batch_idx % 10 == 0:
+            if batch_idx % 15 == 0:
                 step_idx=batch_idx+len(self.train_loader)*(epoch_num-config.start_epoch+1)
                 total_norm = 0
                 for p in self.model.parameters():
@@ -285,7 +322,6 @@ class Trainer:
                 total_norm = total_norm ** 0.5
                 print("Gradient norm:", total_norm)
                 if accelerator.is_main_process:
-                    wandb.log({"stept": step_idx, "Gradient norm": total_norm})
                     gt_image=wandb.Image(gts[0], caption="Ground Truth")
                     res = torch.nn.functional.interpolate(
                         scaled_preds[3][0].sigmoid().unsqueeze(0),
@@ -294,7 +330,7 @@ class Trainer:
                         align_corners=True
                     )
                     pred_image=wandb.Image(res, caption="Predicted")
-                    wandb.log({"gt_image": gt_image, "pred_image": pred_image})
+                    wandb.log({"GT/Prediction": [gt_image, pred_image]})
         else:
             self.val_loss_log.update(loss.item(), inputs.size(0))
     
@@ -313,14 +349,11 @@ class Trainer:
             self.loss_log = AverageMeter()
             self.val_loss_log = AverageMeter()
 
-        self.iteration_over_batches(epoch, self.train_loader, self.loss_dict_train, self.loss_log, log_each_steps=10, validation=False)
+        self.iteration_over_batches_train(epoch, self.train_loader, self.loss_dict_train, log_each_steps=15)
         self.epoch_final_logs(epoch, self.loss_log, log_task="Training")
         
         self.lr_scheduler.step()
 
-        self.loss_dict_validation = {}
-
-        self.iteration_over_batches(epoch, self.validation_loader, self.loss_dict_validation, self.val_loss_log, log_each_steps=3, validation=True)
         self.epoch_final_logs(epoch, self.val_loss_log, log_task="Validation")
 
         return self.loss_log.avg, self.val_loss_log.avg
