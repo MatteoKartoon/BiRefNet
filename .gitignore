@@ -10,6 +10,7 @@ e_*
 .vscode
 ckpt
 preds
+wandb
 evaluation/eval-*
 nohup.*
 tmp*

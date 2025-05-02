@@ -6,7 +6,35 @@ import numpy as np
 import random
 import cv2
 from PIL import Image
+import wandb
 
+def init_wandb(config,args):
+        wandb.init(
+        # Set the project where this run will be logged
+        project="BiRefNet finetuning",
+        dir="..",
+        # We pass a run name (otherwise it’ll be randomly assigned, like sunshine-lollypop-10)
+        name=config.run_name,
+        # Track hyperparameters and run metadata
+        config={
+        "learning_rate": config.lr,
+        "architecture": "BiRefNet",
+        "epochs": args.epochs,
+        "batch_size": config.batch_size,
+        "optimizer": config.optimizer,
+        "train_set": args.train_set,
+        "validation_set": args.validation_set,
+        "save_last_epochs": args.save_last_epochs,
+        "save_each_epochs": args.save_each_epochs,
+        "finetune_last_epochs": config.finetune_last_epochs,
+        "pixel loss lambdas": config.lambdas_pix_last,
+        "pixel loss lambdas activated": config.lambdas_pix_last_activated,
+        "bce_with_logits": config.bce_with_logits,
+        })
+        
+        wandb.define_metric("Gradient norm")
+        wandb.define_metric("Training Loss")
+        wandb.define_metric("Validation Loss")
 
 def path_to_image(path, size=(1024, 1024), color_type=['rgb', 'gray'][0]):
     if color_type.lower() == 'rgb':

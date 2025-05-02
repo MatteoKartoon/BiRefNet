@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from datetime import datetime as dt
+import wandb
 
 if tuple(map(int, torch.__version__.split('+')[0].split(".")[:3])) >= (2, 5, 0):
     os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
@@ -14,7 +15,7 @@ from birefnet.config import Config
 from birefnet.loss import PixLoss, ClsLoss
 from birefnet.dataset import MyData
 from birefnet.models.birefnet import BiRefNet, BiRefNetC2F
-from birefnet.utils import Logger, AverageMeter, set_seed, check_state_dict
+from birefnet.utils import Logger, AverageMeter, set_seed, check_state_dict, init_wandb
 
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -50,7 +51,10 @@ if args.use_accelerate:
 config = Config()
 if config.rand_seed:
     set_seed(config.rand_seed)
-    
+
+if accelerator.is_main_process:
+    init_wandb(config,args)
+
 # DDP
 to_be_distributed = args.dist
 if to_be_distributed:
@@ -175,7 +179,7 @@ class Trainer:
         self.cls_loss = ClsLoss()
         
         if config.out_ref:
-            if self.pix_loss.bce_with_logits:
+            if config.bce_with_logits:
                 self.criterion_gdt = nn.BCEWithLogitsLoss()
             else:
                 self.criterion_gdt = nn.BCELoss()
@@ -183,6 +187,59 @@ class Trainer:
         # Others
         self.loss_log = AverageMeter()
         self.val_loss_log = AverageMeter()
+
+    def iteration_over_batches_validation(self, epoch, info_progress=None, step_idx=None, training_result=None):
+        #Loop over the batches
+        total_loss=0
+        for batch_idx, batch in enumerate(self.validation_loader):
+            self._batch(batch, batch_idx, epoch, validation=True)
+            # Logger
+            total_loss+=self.loss_dict_validation['loss_pix']
+        #Compute the average of the losses over the validation set
+        average_loss=total_loss/len(self.validation_loader)
+        #For each loss type, compute the average between the devices
+        loss_general_value=self.average_between_devices(average_loss)
+        accelerator.wait_for_everyone()
+        #add to the print string
+        if accelerator.is_main_process:
+            info_loss = f'Validation Losses, loss_pix: {loss_general_value}'
+            logger.info(' '.join((info_progress, info_loss)))
+            wandb.log({"Validation Loss": loss_general_value, "Training Loss": training_result},step=step_idx)
+        accelerator.wait_for_everyone() #Log the average of the losses over the validation set
+
+    def iteration_over_batches_train(self, epoch):
+        #Loop over the training batches
+        for batch_idx, batch in enumerate(self.train_loader):
+            step_idx=batch_idx+len(self.train_loader)*(epoch-config.start_epoch)+1
+            self._batch(batch, batch_idx, epoch)
+            # Logger
+            if batch_idx % config.log_each_steps == 0:
+                info_progress = f'Epoch[{epoch}/{args.epochs}] Iter[{batch_idx}/{len(self.train_loader)}].'
+                loss_general_value=self.average_between_devices(self.loss_dict_train['loss_pix'])
+                accelerator.wait_for_everyone()
+                if accelerator.is_main_process:
+                    info_loss = f'Training Losses, loss_pix: {loss_general_value}'
+                    logger.info(' '.join((info_progress, info_loss)))
+                self.iteration_over_batches_validation(epoch, info_progress, step_idx, loss_general_value)
+
+    def average_between_devices(self, values: float):
+        #gather values from all processes
+        values_tensor = torch.tensor([values], device=accelerator.device)
+        all_values = accelerator.gather(values_tensor)
+        # Compute average loss on main process
+        if accelerator.is_main_process:
+            return all_values.mean().item()
+
+    def epoch_final_logs(self,epoch, log_losses, log_task="Training"):
+        #Print the final epoch logs
+        info_loss = f'@==Final== Epoch[{epoch}/{args.epochs}]  {log_task} Loss Device {accelerator.device}: {log_losses.avg}'
+        logger.info(info_loss)
+        avg_loss = self.average_between_devices(log_losses.avg)
+        accelerator.wait_for_everyone()
+        if accelerator.is_main_process:
+            logger.info(f'@==Final== Epoch[{epoch}/{args.epochs}]  Average {log_task} Loss: {avg_loss}')
+        # Synchronize before next steps
+        accelerator.wait_for_everyone()
 
     def _batch(self, batch, batch_idx, epoch_num, validation=False):
         if args.use_accelerate:
@@ -201,7 +258,7 @@ class Trainer:
             (outs_gdt_pred, outs_gdt_label), scaled_preds = scaled_preds
             for _idx, (_gdt_pred, _gdt_label) in enumerate(zip(outs_gdt_pred, outs_gdt_label)):
                 _gdt_pred = nn.functional.interpolate(_gdt_pred, size=_gdt_label.shape[2:], mode='bilinear', align_corners=True)
-                if not self.pix_loss.bce_with_logits:
+                if not config.bce_with_logits:
                     _gdt_pred = _gdt_pred.sigmoid()
                 _gdt_label = _gdt_label.sigmoid()
                 loss_gdt = self.criterion_gdt(_gdt_pred, _gdt_label) if _idx == 0 else self.criterion_gdt(_gdt_pred, _gdt_label) + loss_gdt
@@ -234,7 +291,7 @@ class Trainer:
             self.optimizer.step()
 
             # Print gradient norm to monitor training
-            if batch_idx % 10 == 0:
+            if batch_idx % config.log_each_steps == 0:
                 total_norm = 0
                 for p in self.model.parameters():
                     if p.grad is not None:
@@ -242,6 +299,16 @@ class Trainer:
                     total_norm += param_norm.item() ** 2
                 total_norm = total_norm ** 0.5
                 print("Gradient norm:", total_norm)
+                if accelerator.is_main_process:
+                    gt_image=wandb.Image(gts[0], caption="Ground Truth")
+                    res = torch.nn.functional.interpolate(
+                        scaled_preds[3][0].sigmoid().unsqueeze(0),
+                        size=gts[0].shape[1:],
+                        mode='bilinear',
+                        align_corners=True
+                    )
+                    pred_image=wandb.Image(res, caption="Predicted")
+                    wandb.log({"GT and prediction": [gt_image, pred_image]})
         else:
             self.val_loss_log.update(loss.item(), inputs.size(0))
     
@@ -249,6 +316,7 @@ class Trainer:
         global logger_loss_idx
         self.model.train()
         self.loss_dict_train = {}
+        self.loss_dict_validation = {}
         if epoch > args.epochs + config.finetune_last_epochs:
             self.pix_loss.lambdas_pix_last['bce'] *= 0
             self.pix_loss.lambdas_pix_last['ssim'] *= 1
@@ -260,34 +328,12 @@ class Trainer:
             self.loss_log = AverageMeter()
             self.val_loss_log = AverageMeter()
 
-        #Loop over the training batches
-        for batch_idx, batch in enumerate(self.train_loader):
-            # with nullcontext if not args.use_accelerate or accelerator.gradient_accumulation_steps <= 1 else accelerator.accumulate(self.model):
-            self._batch(batch, batch_idx, epoch)
-            # Logger
-            if batch_idx % 10 == 0:
-                info_progress = 'Epoch[{0}/{1}] Iter[{2}/{3}].'.format(epoch, args.epochs, batch_idx, len(self.train_loader))
-                info_loss = 'Training Losses'
-                for loss_name, loss_value in self.loss_dict_train.items():
-                    info_loss += ', {}: {:.3f}'.format(loss_name, loss_value)
-                logger.info(' '.join((info_progress, info_loss)))
-        info_loss = '@==Final== Epoch[{0}/{1}]  Training Loss: {loss.avg:.3f}'.format(epoch, args.epochs, loss=self.loss_log)
-        logger.info(info_loss)
+        self.iteration_over_batches_train(epoch, log_each_steps=15)
+        self.epoch_final_logs(epoch, self.loss_log, log_task="Training")
+        
         self.lr_scheduler.step()
 
-        self.loss_dict_validation = {}
-        #Loop over the validation batches
-        for batch_idx, batch in enumerate(self.validation_loader):
-            self._batch(batch, batch_idx, epoch, validation=True)
-            # Logger
-            if batch_idx % 3 == 0:
-                info_progress = 'Epoch[{0}/{1}] Iter[{2}/{3}].'.format(epoch, args.epochs, batch_idx, len(self.validation_loader))
-                info_loss = 'Validation Losses'
-                for loss_name, loss_value in self.loss_dict_validation.items():
-                    info_loss += ', {}: {:.3f}'.format(loss_name, loss_value)
-                logger.info(' '.join((info_progress, info_loss)))
-        info_loss = '@==Final== Epoch[{0}/{1}]  Validation Loss: {loss.avg:.3f}'.format(epoch, args.epochs, loss=self.val_loss_log)
-        logger.info(info_loss)
+        self.epoch_final_logs(epoch, self.val_loss_log, log_task="Validation")
 
         return self.loss_log.avg, self.val_loss_log.avg
 

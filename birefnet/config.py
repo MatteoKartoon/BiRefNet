@@ -13,6 +13,8 @@ class Config():
 
         # TASK settings
         self.task = 'fine_tuning'
+
+        self.run_name = 'BCE disabled'
   
         self.prompt4loc = 'dense'
 
@@ -35,10 +37,11 @@ class Config():
         self.squeeze_block = 'BasicDecBlk_x1'
         self.dec_blk = 'BasicDecBlk'
         self.batch_size = 2
-        
+        self.start_epoch=245
+        self.log_each_steps = 15
 
         self.finetune_last_epochs =-20
-        self.lr = 1e-5 * math.sqrt(self.batch_size / 4)
+        self.lr = 1e-6
         self.size = (1024, 1024) # wid, hei
         self.dynamic_size = (0, 0)   # wid, hei. It might cause errors in using compile.
         self.background_color_synthesis = False             # whether to use pure bg color to replace the original backgrounds.
@@ -69,6 +72,7 @@ class Config():
         self.lr_decay_epochs = [1e5]    # Set to negative N to decay the lr in the last N-th epoch.
         self.lr_decay_rate = 0.5
         # Loss
+        self.bce_with_logits = True
         self.lambdas_pix_last = {
             'bce': 100,
             'iou': 0.5,
@@ -83,7 +87,7 @@ class Config():
         }
 
         self.lambdas_pix_last_activated = {
-            'bce': True,
+            'bce': False,
             'iou': True,
             'iou_patch': False,
             'mae': True,
