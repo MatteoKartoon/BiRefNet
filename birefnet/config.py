@@ -14,7 +14,7 @@ class Config():
         # TASK settings
         self.task = 'fine_tuning'
 
-        self.run_name = 'BCE disabled'
+        self.run_name = 'one image'
   
         self.prompt4loc = 'dense'
 
@@ -74,7 +74,7 @@ class Config():
         # Loss
         self.bce_with_logits = True
         self.lambdas_pix_last = {
-            'bce': 100,
+            'bce': 30,
             'iou': 0.5,
             'iou_patch': 0.5,
             'mae': 100,
@@ -87,7 +87,7 @@ class Config():
         }
 
         self.lambdas_pix_last_activated = {
-            'bce': False,
+            'bce': True,
             'iou': True,
             'iou_patch': False,
             'mae': True,
