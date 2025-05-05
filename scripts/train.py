@@ -90,12 +90,6 @@ print('batch size:', config.batch_size)
 
 from birefnet.dataset import custom_collate_fn
 
-def _get_loss_key(epoch):
-    """
-    We change the loss function in the last epochs so we change the name of the dictionary key in order to not confuse the two
-    """
-    return "loss_pix_rescaled" if epoch > args.epochs + config.finetune_last_epochs else "loss_pix"
-
 def prepare_dataloader(dataset: torch.utils.data.Dataset, batch_size: int, to_be_distributed=False, is_train=True):
     # Prepare dataloaders
     if to_be_distributed:
@@ -194,13 +188,22 @@ class Trainer:
         self.loss_log = AverageMeter()
         self.val_loss_log = AverageMeter()
 
+        self.save_last_epochs_start = args.epochs - args.save_last_epochs
+        self.finetune_last_epochs_start = args.epochs + config.finetune_last_epochs
+
+    def _get_loss_key(self,epoch):
+        """
+        We change the loss function in the last epochs so we change the name of the dictionary key in order to not confuse the two
+        """
+        return "loss_pix_rescaled" if epoch > self.finetune_last_epochs_start else "loss_pix"
+
     def iteration_over_batches_validation(self, epoch, info_progress=None, step_idx=None, training_result=None):
         #Loop over the batches
         total_loss=0
         for batch_idx, batch in enumerate(self.validation_loader):
             self._batch(batch, batch_idx, epoch, validation=True)
             # Logger
-            total_loss+=self.loss_dict_validation[_get_loss_key(epoch)]
+            total_loss+=self.loss_dict_validation[self._get_loss_key(epoch)]
         #Compute the average of the losses over the validation set
         average_loss=total_loss/len(self.validation_loader)
         #For each loss type, compute the average between the devices
@@ -221,7 +224,7 @@ class Trainer:
             # Logger
             if batch_idx % config.log_each_steps == 0:
                 info_progress = f'Epoch[{epoch}/{args.epochs}] Iter[{batch_idx}/{len(self.train_loader)}].'
-                loss_general_value=self.average_between_devices(self.loss_dict_train[_get_loss_key(epoch)])
+                loss_general_value=self.average_between_devices(self.loss_dict_train[self._get_loss_key(epoch)])
                 accelerator.wait_for_everyone()
                 if accelerator.is_main_process:
                     info_loss = f'Training Losses, loss_pix: {loss_general_value}'
@@ -277,7 +280,7 @@ class Trainer:
         
         # Loss
         loss_pix = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
-        loss_dict[_get_loss_key(epoch)] = loss_pix.item()
+        loss_dict[self._get_loss_key(epoch)] = loss_pix.item()
 
         # since there may be several losses for sal, the lambdas for them (lambdas_pix) are inside the loss.py
         loss = loss_pix + loss_cls
@@ -320,14 +323,12 @@ class Trainer:
         self.model.train()
         self.loss_dict_train = {}
         self.loss_dict_validation = {}
-        if epoch > args.epochs + config.finetune_last_epochs:
+        if epoch == self.finetune_last_epochs_start:
             self.pix_loss.lambdas_pix_last['bce'] *= 0
             self.pix_loss.lambdas_pix_last['ssim'] *= 1
             self.pix_loss.lambdas_pix_last['iou'] *= 0.5
             self.pix_loss.lambdas_pix_last['mae'] *= 0.9
             print("Loss computation updated for the last epochs")
-
-        if epoch==args.epochs+config.finetune_last_epochs+1:
             self.loss_log = AverageMeter()
             self.val_loss_log = AverageMeter()
 
