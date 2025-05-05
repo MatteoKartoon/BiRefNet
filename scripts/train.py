@@ -187,7 +187,9 @@ class Trainer:
         # Others
         self.loss_log = AverageMeter()
         self.val_loss_log = AverageMeter()
-
+        
+        assert args.save_last_epochs > 0, "save_last_epochs must be greater than 0"
+        assert config.finetune_last_epochs < 0, "finetune_last_epochs must be less than 0"
         self.save_last_epochs_start = args.epochs - args.save_last_epochs
         self.finetune_last_epochs_start = args.epochs + config.finetune_last_epochs
 
