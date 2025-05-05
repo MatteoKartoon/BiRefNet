@@ -4,8 +4,6 @@
 export CUDA_VISIBLE_DEVICES=0,1
 
 ckpt_dir="fine_tuning"
-#train_set="train_generations_20250326_pose+train_generations_20250318_emotion+train_generations_20250411_ref_images"
-#validation_set="validation_generations_20250326_pose+validation_generations_20250318_emotion+validation_generations_20250411_ref_images"
 train_set="one_image"
 validation_set="validation_generations_20250318_emotion"
 epochs=294
