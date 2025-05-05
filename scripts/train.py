@@ -187,14 +187,15 @@ class Trainer:
         # Others
         self.loss_log = AverageMeter()
         self.val_loss_log = AverageMeter()
+        self.dict_key='loss_pix'
 
     def iteration_over_batches_validation(self, epoch, info_progress=None, step_idx=None, training_result=None):
         #Loop over the batches
         total_loss=0
         for batch_idx, batch in enumerate(self.validation_loader):
-            self._batch(batch, batch_idx, epoch, validation=True)
+            self._batch(batch, batch_idx, validation=True)
             # Logger
-            total_loss+=self.loss_dict_validation['loss_pix']
+            total_loss+=self.loss_dict_validation[self.dict_key]
         #Compute the average of the losses over the validation set
         average_loss=total_loss/len(self.validation_loader)
         #For each loss type, compute the average between the devices
@@ -211,11 +212,11 @@ class Trainer:
         #Loop over the training batches
         for batch_idx, batch in enumerate(self.train_loader):
             step_idx=batch_idx+len(self.train_loader)*(epoch-config.start_epoch)+1
-            self._batch(batch, batch_idx, epoch)
+            self._batch(batch, batch_idx, validation=False)
             # Logger
             if batch_idx % config.log_each_steps == 0:
                 info_progress = f'Epoch[{epoch}/{args.epochs}] Iter[{batch_idx}/{len(self.train_loader)}].'
-                loss_general_value=self.average_between_devices(self.loss_dict_train['loss_pix'])
+                loss_general_value=self.average_between_devices(self.loss_dict_train[self.dict_key])
                 accelerator.wait_for_everyone()
                 if accelerator.is_main_process:
                     info_loss = f'Training Losses, loss_pix: {loss_general_value}'
@@ -241,7 +242,7 @@ class Trainer:
         # Synchronize before next steps
         accelerator.wait_for_everyone()
 
-    def _batch(self, batch, batch_idx, epoch_num, validation=False):
+    def _batch(self, batch, batch_idx, validation=False):
         if args.use_accelerate:
             inputs = batch[0]#.to(device)
             gts = batch[1]#.to(device)
@@ -271,10 +272,7 @@ class Trainer:
         
         # Loss
         loss_pix = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
-        if epoch_num>args.epochs+config.finetune_last_epochs:
-            loss_dict['loss_pix_rescaled'] = loss_pix.item()
-        else:
-            loss_dict['loss_pix'] = loss_pix.item()
+        loss_dict[self.dict_key] = loss_pix.item()
 
         # since there may be several losses for sal, the lambdas for them (lambdas_pix) are inside the loss.py
         loss = loss_pix + loss_cls
@@ -311,7 +309,7 @@ class Trainer:
                     wandb.log({"GT and prediction": [gt_image, pred_image]})
         else:
             self.val_loss_log.update(loss.item(), inputs.size(0))
-    
+
     def train_epoch(self, epoch):
         global logger_loss_idx
         self.model.train()
@@ -322,13 +320,14 @@ class Trainer:
             self.pix_loss.lambdas_pix_last['ssim'] *= 1
             self.pix_loss.lambdas_pix_last['iou'] *= 0.5
             self.pix_loss.lambdas_pix_last['mae'] *= 0.9
+            self.dict_key='loss_pix_rescaled'
             print("Loss computation updated for the last epochs")
 
         if epoch==args.epochs+config.finetune_last_epochs+1:
             self.loss_log = AverageMeter()
             self.val_loss_log = AverageMeter()
 
-        self.iteration_over_batches_train(epoch, log_each_steps=15)
+        self.iteration_over_batches_train(epoch)
         self.epoch_final_logs(epoch, self.loss_log, log_task="Training")
         
         self.lr_scheduler.step()
