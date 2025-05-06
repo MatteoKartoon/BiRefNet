@@ -38,8 +38,16 @@ def init_wandb(config,args):
         wandb.define_metric("Validation Loss")
         wandb.define_metric("Learning Rate")
         wandb.define_metric("Gradient norm")
+        wandb.define_metric("BCE loss training")
+        wandb.define_metric("SSIM loss training")
+        wandb.define_metric("MAE loss training")
+        wandb.define_metric("IoU loss training")
+        wandb.define_metric("BCE loss validation")
+        wandb.define_metric("SSIM loss validation")
+        wandb.define_metric("MAE loss validation")
+        wandb.define_metric("IoU loss validation")
 
-def lr_warm_up(type, epochs, start_factor, end_factor, optimizer):
+def get_lr_warm_up_scheduler(type, epochs, start_factor, end_factor, optimizer):
     if type == 'linear':
         print("Leraning rate warm up type set to linear")
         lr_scheduler = torch.optim.lr_scheduler.LinearLR(

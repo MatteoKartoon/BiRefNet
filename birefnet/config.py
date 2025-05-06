@@ -14,7 +14,7 @@ class Config():
         # TASK settings
         self.task = 'fine_tuning'
 
-        self.run_name = 'lr 1e-5'
+        self.run_name = 'loss_component'
   
         self.prompt4loc = 'dense'
 
