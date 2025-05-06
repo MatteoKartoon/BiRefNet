@@ -14,7 +14,7 @@ class Config():
         # TASK settings
         self.task = 'fine_tuning'
 
-        self.run_name = 'one image'
+        self.run_name = 'loss_component'
   
         self.prompt4loc = 'dense'
 
@@ -39,9 +39,10 @@ class Config():
         self.batch_size = 2
         self.start_epoch=245
         self.log_each_steps = 15
+        self.lr_warm_up_type = None
 
         self.finetune_last_epochs =-20
-        self.lr = 1e-6
+        self.lr = 1e-5
         self.size = (1024, 1024) # wid, hei
         self.dynamic_size = (0, 0)   # wid, hei. It might cause errors in using compile.
         self.background_color_synthesis = False             # whether to use pure bg color to replace the original backgrounds.

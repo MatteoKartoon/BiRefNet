@@ -1,7 +1,7 @@
 # Assign input arguments to variables
-input_folderpath="/home/matteo/ai-research/rembg_finetuning/datasets/dis/fine_tuning/validation_generations_20250411_ref_images/an"
-output_folderpath="/home/matteo/ai-research/rembg_finetuning/datasets/dis/fine_tuning/validation_generations_20250311_ref_images/gt"
-high_threshold=255
+input_folderpath="/home/matteo/ai-research/rembg_finetuning/datasets/dis/fine_tuning/test_generations_20250318_emotion/an"
+output_folderpath="/home/matteo/ai-research/rembg_finetuning/datasets/dis/fine_tuning/test_generations_20250318_emotion/gt"
+high_threshold=220
 low_threshold=0
 
 # Call the compute_gt script with the provided arguments

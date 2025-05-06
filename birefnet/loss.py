@@ -155,16 +155,18 @@ class PixLoss(nn.Module):
 
     def forward(self, scaled_preds, gt):
         loss = 0.
+        loss_components={k:0. for k in self.criterions_last.keys()}
         for _, pred_lvl in enumerate(scaled_preds):
             if pred_lvl.shape != gt.shape:
                 pred_lvl = nn.functional.interpolate(pred_lvl, size=gt.shape[2:], mode='bilinear', align_corners=True)
             for criterion_name, criterion in self.criterions_last.items():
-                if criterion_name == 'bce' and self.config.bce_with_logits:
-                    _loss = criterion(pred_lvl, gt) * self.lambdas_pix_last[criterion_name]
+                if isinstance(criterion,nn.BCEWithLogitsLoss):
+                    _loss=criterion(pred_lvl, gt)*self.lambdas_pix_last[criterion_name]
                 else:
-                    _loss = criterion(pred_lvl.sigmoid(), gt) * self.lambdas_pix_last[criterion_name]
+                    _loss=criterion(pred_lvl.sigmoid(), gt)*self.lambdas_pix_last[criterion_name]
                 loss += _loss
-        return loss
+                loss_components[criterion_name]+=_loss.detach()
+        return loss, loss_components
 
 
 class SSIMLoss(torch.nn.Module):

@@ -15,7 +15,7 @@ from birefnet.config import Config
 from birefnet.loss import PixLoss, ClsLoss
 from birefnet.dataset import MyData
 from birefnet.models.birefnet import BiRefNet, BiRefNetC2F
-from birefnet.utils import Logger, AverageMeter, set_seed, check_state_dict, init_wandb
+from birefnet.utils import Logger, AverageMeter, set_seed, check_state_dict, init_wandb, get_lr_warm_up_scheduler
 
 from torch.utils.data.distributed import DistributedSampler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -37,7 +37,7 @@ args = parser.parse_args()
 
 if args.use_accelerate:
     from accelerate import Accelerator, utils
-    mixed_precision = 'fp16'
+    mixed_precision = 'bf16'
     accelerator = Accelerator(
         mixed_precision=mixed_precision,
         gradient_accumulation_steps=1,
@@ -154,11 +154,27 @@ def init_models_optimizers(epochs, to_be_distributed):
         optimizer = optim.AdamW(params=model.parameters(), lr=config.lr, weight_decay=1e-2)
     elif config.optimizer == 'Adam':
         optimizer = optim.Adam(params=model.parameters(), lr=config.lr, weight_decay=0)
-    lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(
+
+    # Create a lr warmup for first 10 epochs
+    wu_epochs = 10
+    warmup_scheduler = get_lr_warm_up_scheduler(config.lr_warm_up_type, wu_epochs, 1e-20, 1.0, optimizer)
+    
+    # Main scheduler after warmup
+    main_scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer,
         milestones=[lde if lde > 0 else epochs + lde + 1 for lde in config.lr_decay_epochs],
         gamma=config.lr_decay_rate
     )
+    
+    if warmup_scheduler != None:
+        # Combine both schedulers
+        lr_scheduler = torch.optim.lr_scheduler.SequentialLR(
+            optimizer,
+            schedulers=[warmup_scheduler, main_scheduler],
+            milestones=[wu_epochs]
+        )
+    else:
+        lr_scheduler = main_scheduler
 
     return model, optimizer, lr_scheduler
 
@@ -193,6 +209,8 @@ class Trainer:
         self.save_last_epochs_start = args.epochs - args.save_last_epochs
         self.finetune_last_epochs_start = args.epochs + config.finetune_last_epochs
 
+        self.last_grad_norm = 0
+
     def _get_loss_key(self,epoch):
         """
         We change the loss function in the last epochs so we change the name of the dictionary key in order to not confuse the two
@@ -215,7 +233,19 @@ class Trainer:
         if accelerator.is_main_process:
             info_loss = f'Validation Losses, loss_pix: {loss_general_value}'
             logger.info(' '.join((info_progress, info_loss)))
-            wandb.log({"Validation Loss": loss_general_value, "Training Loss": training_result},step=step_idx)
+            wandb.log({"Validation Loss": loss_general_value,
+                       "Training Loss": training_result,
+                       "Learning Rate": self.lr_scheduler.get_last_lr()[0],
+                       "Gradient Norm": self.last_grad_norm,
+                       "BCE loss validation": self.loss_components_validation['bce'],
+                       "SSIM loss validation": self.loss_components_validation['ssim'],
+                       "MAE loss validation": self.loss_components_validation['mae'],
+                       "IoU loss validation": self.loss_components_validation['iou'],
+                       "BCE loss training": self.loss_components_train['bce'],
+                       "SSIM loss training": self.loss_components_train['ssim'],
+                       "MAE loss training": self.loss_components_train['mae'],
+                       "IoU loss training": self.loss_components_train['iou']
+                       },step=step_idx)
         accelerator.wait_for_everyone() #Log the average of the losses over the validation set
 
     def iteration_over_batches_train(self, epoch):
@@ -281,7 +311,11 @@ class Trainer:
             loss_dict['loss_cls'] = loss_cls.item()
         
         # Loss
-        loss_pix = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
+        loss_pix, loss_components = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1))
+        if validation:
+            self.loss_components_validation=loss_components
+        else:
+            self.loss_components_train=loss_components
         loss_dict[self._get_loss_key(epoch)] = loss_pix.item()
 
         # since there may be several losses for sal, the lambdas for them (lambdas_pix) are inside the loss.py
@@ -307,6 +341,7 @@ class Trainer:
                     total_norm += param_norm.item() ** 2
                 total_norm = total_norm ** 0.5
                 print("Gradient norm:", total_norm)
+                self.last_grad_norm = total_norm
                 if accelerator.is_main_process:
                     gt_image=wandb.Image(gts[0], caption="Ground Truth")
                     res = torch.nn.functional.interpolate(
