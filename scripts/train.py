@@ -312,7 +312,11 @@ class Trainer:
             loss_dict['loss_cls'] = loss_cls.item()
         
         # Loss
-        loss_pix, loss_components = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1)) * 1.0
+        loss_pix, loss_components = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1))
+        if not validation:
+            self.loss_components_train=loss_components
+        else:
+            self.loss_components_validation=loss_components
         loss_dict[self._get_loss_key(epoch)] = loss_pix.item()
 
         # since there may be several losses for sal, the lambdas for them (lambdas_pix) are inside the loss.py

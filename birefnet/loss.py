@@ -164,7 +164,7 @@ class PixLoss(nn.Module):
                     pred_lvl=pred_lvl.sigmoid()
                 loss_crit=criterion(pred_lvl, gt)
                 _loss = loss_crit * self.lambdas_pix_last[criterion_name]
-                loss_components[criterion_name]+=loss_crit
+                loss_components[criterion_name]+=loss_crit.detach()
                 loss += _loss
         return loss, loss_components
 
