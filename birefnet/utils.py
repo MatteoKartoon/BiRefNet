@@ -30,11 +30,36 @@ def init_wandb(config,args):
         "pixel loss lambdas": config.lambdas_pix_last,
         "pixel loss lambdas activated": config.lambdas_pix_last_activated,
         "bce_with_logits": config.bce_with_logits,
+        "lr_warm_up_type": config.lr_warm_up_type,
         })
         
         wandb.define_metric("Gradient norm")
         wandb.define_metric("Training Loss")
         wandb.define_metric("Validation Loss")
+        wandb.define_metric("Learning Rate")
+        wandb.define_metric("Gradient norm")
+
+def lr_warm_up(type, epochs, start_factor, end_factor, optimizer):
+    if type == 'linear':
+        print("Leraning rate warm up type set to linear")
+        lr_scheduler = torch.optim.lr_scheduler.LinearLR(
+            optimizer,
+            start_factor=start_factor,
+            end_factor=end_factor,
+            total_iters=epochs
+        )
+    elif type == 'cosine':
+        print("Leraning rate warm up type set to cosine")
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer,
+            T_max=epochs,
+            eta_min=start_factor
+        )
+    else:
+        print("Invalid learning rate warm up type, skipping it...")
+        lr_scheduler = None
+    return lr_scheduler
+        
 
 def path_to_image(path, size=(1024, 1024), color_type=['rgb', 'gray'][0]):
     if color_type.lower() == 'rgb':
