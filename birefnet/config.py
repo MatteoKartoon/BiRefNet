@@ -39,7 +39,7 @@ class Config():
         self.batch_size = 2
         self.start_epoch=245
         self.log_each_steps = 15
-        self.lr_warm_up_type = 'none'
+        self.lr_warm_up_type = None
 
         self.finetune_last_epochs =-20
         self.lr = 1e-5

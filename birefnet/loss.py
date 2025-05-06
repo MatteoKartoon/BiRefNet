@@ -155,17 +155,17 @@ class PixLoss(nn.Module):
 
     def forward(self, scaled_preds, gt):
         loss = 0.
-        loss_components={k:0. for k in self.criterions_last.keys() if self.lambdas_pix_last[k]}
+        loss_components={k:0. for k in self.criterions_last.keys()}
         for _, pred_lvl in enumerate(scaled_preds):
             if pred_lvl.shape != gt.shape:
                 pred_lvl = nn.functional.interpolate(pred_lvl, size=gt.shape[2:], mode='bilinear', align_corners=True)
             for criterion_name, criterion in self.criterions_last.items():
-                if not (criterion_name == 'bce' and self.config.bce_with_logits):
-                    pred_lvl=pred_lvl.sigmoid()
-                loss_crit=criterion(pred_lvl, gt)
-                _loss = loss_crit * self.lambdas_pix_last[criterion_name]
-                loss_components[criterion_name]+=loss_crit.detach()
+                if isinstance(criterion,nn.BCEWithLogitsLoss):
+                    _loss=criterion(pred_lvl, gt)*self.lambdas_pix_last[criterion_name]
+                else:
+                    _loss=criterion(pred_lvl.sigmoid(), gt)*self.lambdas_pix_last[criterion_name]
                 loss += _loss
+                loss_components[criterion_name]+=_loss.detach()
         return loss, loss_components
 
 

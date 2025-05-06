@@ -294,7 +294,6 @@ class Trainer:
         self.optimizer.zero_grad()
         scaled_preds, class_preds_lst = self.model(inputs)
         loss_dict=self.loss_dict_validation if validation else self.loss_dict_train
-        loss_components=self.loss_components_validation if validation else self.loss_components_train
         if config.out_ref:
             # Only unpack if in training mode and out_ref is enabled
             (outs_gdt_pred, outs_gdt_label), scaled_preds = scaled_preds
@@ -313,10 +312,10 @@ class Trainer:
         
         # Loss
         loss_pix, loss_components = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1))
-        if not validation:
-            self.loss_components_train=loss_components
-        else:
+        if validation:
             self.loss_components_validation=loss_components
+        else:
+            self.loss_components_train=loss_components
         loss_dict[self._get_loss_key(epoch)] = loss_pix.item()
 
         # since there may be several losses for sal, the lambdas for them (lambdas_pix) are inside the loss.py
@@ -361,8 +360,6 @@ class Trainer:
         self.model.train()
         self.loss_dict_train = {}
         self.loss_dict_validation = {}
-        self.loss_components_train = {}
-        self.loss_components_validation = {}
         if epoch == self.finetune_last_epochs_start:
             self.pix_loss.lambdas_pix_last['bce'] *= 0
             self.pix_loss.lambdas_pix_last['ssim'] *= 1
