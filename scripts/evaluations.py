@@ -28,12 +28,13 @@ def get_scores(list_gt: List[str], list_pred: List[str]):
     )
 
     #create a list containing all the computed scores
-    scores = {'S': sm.round(3), 'MAE': mae.round(3), 'E': em['curve'].mean().round(3), 'F': fm['curve'].mean().round(3), 'WF': wfm.round(3),
-              'MBA': mba.round(3), 'BIoU': biou['curve'].mean().round(3), 'MSE': mse.round(3), 'HCE': int(hce.round()), 'PA': pa.round(3)}
+    scores = {'S': sm, 'MAE': mae, 'E': em, 'F': fm, 'WF': wfm, 'MBA': mba, 'BIoU': biou, 'MSE': mse, 'HCE': hce, 'PA': pa}
+
+    scores = {metric:value['curve'].mean().round(3) if metric in ['E','F','BIoU'] else int(hce.round()) if metric == 'HCE' else value.round(3) for metric, value in scores.items()}
 
     #format the scores
     for metric, score in scores.items():
-        scores[metric] = '.' + format(score, '.3f').split('.')[-1] if score < 1  else format(score, '<4')
+        scores[metric] = f".{f'{score:.3f}'.split('.')[-1]}" if score < 1 else f"{score:<4}"
 
     #create a list containing the active scores
     return [scores[metric] for metric in config.display_eval_metrics]
@@ -54,7 +55,7 @@ def get_field_names():
         'HCE': 'HCE',
         'PA': 'Pixel Accuracy'
     }
-    return ["Model", "Test set", "Test image number", *[metric_names[metric] for metric in config.display_eval_metrics]]
+    return ["Model", "Test set", "# test images", *[metric_names[metric] for metric in config.display_eval_metrics]]
 
 
 def do_eval(args):
