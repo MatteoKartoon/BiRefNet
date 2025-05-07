@@ -42,10 +42,12 @@ def init_wandb(config,args):
         wandb.define_metric("SSIM loss training")
         wandb.define_metric("MAE loss training")
         wandb.define_metric("IoU loss training")
+        wandb.define_metric("GDT loss training")
         wandb.define_metric("BCE loss validation")
         wandb.define_metric("SSIM loss validation")
         wandb.define_metric("MAE loss validation")
         wandb.define_metric("IoU loss validation")
+        wandb.define_metric("GDT loss validation")
 
 def get_lr_warm_up_scheduler(type, epochs, start_factor, end_factor, optimizer):
     if type == 'linear':

@@ -219,34 +219,44 @@ class Trainer:
 
     def iteration_over_batches_validation(self, epoch, info_progress=None, step_idx=None, training_result=None):
         #Loop over the batches
-        total_loss=0
+        loss_components_dict={k:0 for k in self.loss_components_train.keys()}
+
+        #Compute the sum of the losses over the validation set batches
         for batch_idx, batch in enumerate(self.validation_loader):
             self._batch(batch, batch_idx, epoch, validation=True)
             # Logger
-            total_loss+=self.loss_dict_validation[self._get_loss_key(epoch)]
+            for loss_name, loss_value in self.loss_components_validation.items():
+                loss_components_dict[loss_name]+=loss_value
+
         #Compute the average of the losses over the validation set
-        average_loss=total_loss/len(self.validation_loader)
+        loss_components_dict={loss_name:loss_accumulated_value/len(self.validation_loader) for loss_name, loss_accumulated_value in loss_components_dict.items()}
+
         #For each loss type, compute the average between the devices
-        loss_general_value=self.average_between_devices(average_loss)
+        average_total_loss=sum(loss_components_dict.values())
+        loss_general_value=self.average_between_devices(average_total_loss)
+        loss_components_dict={loss_name:self.average_between_devices(loss_accumulated_value) for loss_name, loss_accumulated_value in loss_components_dict.items()}
         accelerator.wait_for_everyone()
-        #add to the print string
+
+        #add to the print string and log on wandb
         if accelerator.is_main_process:
-            info_loss = f'Validation Losses, loss_pix: {loss_general_value}'
+            info_loss = f'Validation Losses {loss_general_value}'
             logger.info(' '.join((info_progress, info_loss)))
             wandb.log({"Validation Loss": loss_general_value,
                        "Training Loss": training_result,
                        "Learning Rate": self.lr_scheduler.get_last_lr()[0],
                        "Gradient Norm": self.last_grad_norm,
-                       "BCE loss validation": self.loss_components_validation['bce'],
-                       "SSIM loss validation": self.loss_components_validation['ssim'],
-                       "MAE loss validation": self.loss_components_validation['mae'],
-                       "IoU loss validation": self.loss_components_validation['iou'],
+                       "BCE loss validation": loss_components_dict['bce'],
+                       "SSIM loss validation": loss_components_dict['ssim'],
+                       "MAE loss validation": loss_components_dict['mae'],
+                       "IoU loss validation": loss_components_dict['iou'],
+                       "GDT loss validation": loss_components_dict['gdt'],
                        "BCE loss training": self.loss_components_train['bce'],
                        "SSIM loss training": self.loss_components_train['ssim'],
                        "MAE loss training": self.loss_components_train['mae'],
-                       "IoU loss training": self.loss_components_train['iou']
+                       "IoU loss training": self.loss_components_train['iou'],
+                       "GDT loss training": self.loss_components_train['gdt'],
                        },step=step_idx)
-        accelerator.wait_for_everyone() #Log the average of the losses over the validation set
+        accelerator.wait_for_everyone()
 
     def iteration_over_batches_train(self, epoch):
         #Loop over the training batches
@@ -257,9 +267,10 @@ class Trainer:
             if batch_idx % config.log_each_steps == 0:
                 info_progress = f'Epoch[{epoch}/{args.epochs}] Iter[{batch_idx}/{len(self.train_loader)}].'
                 loss_general_value=self.average_between_devices(self.loss_dict_train[self._get_loss_key(epoch)])
+                self.loss_components_train={loss_name:self.average_between_devices(loss_value) for loss_name, loss_value in self.loss_components_train.items()}
                 accelerator.wait_for_everyone()
                 if accelerator.is_main_process:
-                    info_loss = f'Training Losses, loss_pix: {loss_general_value}'
+                    info_loss = f'Training Losses {loss_general_value}'
                     logger.info(' '.join((info_progress, info_loss)))
                 self.iteration_over_batches_validation(epoch, info_progress, step_idx, loss_general_value)
 
@@ -303,7 +314,6 @@ class Trainer:
                     _gdt_pred = _gdt_pred.sigmoid()
                 _gdt_label = _gdt_label.sigmoid()
                 loss_gdt = self.criterion_gdt(_gdt_pred, _gdt_label) if _idx == 0 else self.criterion_gdt(_gdt_pred, _gdt_label) + loss_gdt
-            # self.loss_dict['loss_gdt'] = loss_gdt.item()
         if None in class_preds_lst:
             loss_cls = 0.
         else:
@@ -312,11 +322,12 @@ class Trainer:
         
         # Loss
         loss_pix, loss_components = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1))
+        loss_components['gdt'] = loss_gdt.item()
         if validation:
             self.loss_components_validation=loss_components
         else:
             self.loss_components_train=loss_components
-        loss_dict[self._get_loss_key(epoch)] = loss_pix.item()
+        loss_dict[self._get_loss_key(epoch)] = loss_pix.item()+loss_gdt.item()
 
         # since there may be several losses for sal, the lambdas for them (lambdas_pix) are inside the loss.py
         loss = loss_pix + loss_cls
