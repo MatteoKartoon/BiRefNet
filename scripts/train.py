@@ -244,7 +244,9 @@ class Trainer:
                        "BCE loss training": self.loss_components_train['bce'],
                        "SSIM loss training": self.loss_components_train['ssim'],
                        "MAE loss training": self.loss_components_train['mae'],
-                       "IoU loss training": self.loss_components_train['iou']
+                       "IoU loss training": self.loss_components_train['iou'],
+                       "GDT loss training": self.loss_components_train['gdt'],
+                       "GDT loss validation": self.loss_components_validation['gdt']
                        },step=step_idx)
         accelerator.wait_for_everyone() #Log the average of the losses over the validation set
 
@@ -303,7 +305,6 @@ class Trainer:
                     _gdt_pred = _gdt_pred.sigmoid()
                 _gdt_label = _gdt_label.sigmoid()
                 loss_gdt = self.criterion_gdt(_gdt_pred, _gdt_label) if _idx == 0 else self.criterion_gdt(_gdt_pred, _gdt_label) + loss_gdt
-            # self.loss_dict['loss_gdt'] = loss_gdt.item()
         if None in class_preds_lst:
             loss_cls = 0.
         else:
@@ -312,6 +313,7 @@ class Trainer:
         
         # Loss
         loss_pix, loss_components = self.pix_loss(scaled_preds, torch.clamp(gts, 0, 1))
+        loss_components['gdt'] = loss_gdt.item()
         if validation:
             self.loss_components_validation=loss_components
         else:
