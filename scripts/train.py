@@ -220,11 +220,18 @@ class Trainer:
     def iteration_over_batches_validation(self, epoch, info_progress=None, step_idx=None, training_result=None):
         #Loop over the batches
         total_loss=0
+        loss_comp_val_sum={k:0 for k in self.loss_components_train.keys()}
+        loss_comp_val_aver={k:0 for k in self.loss_components_train.keys()}
+        #Compute the sum of the losses over the validation set batches
         for batch_idx, batch in enumerate(self.validation_loader):
             self._batch(batch, batch_idx, epoch, validation=True)
             # Logger
             total_loss+=self.loss_dict_validation[self._get_loss_key(epoch)]
+            for k in self.loss_components_validation.keys():
+                loss_comp_val_sum[k]+=self.loss_components_validation[k]
         #Compute the average of the losses over the validation set
+        for k in loss_comp_val_sum.keys():
+            loss_comp_val_aver[k]=loss_comp_val_sum[k]/len(self.validation_loader)
         average_loss=total_loss/len(self.validation_loader)
         #For each loss type, compute the average between the devices
         loss_general_value=self.average_between_devices(average_loss)
@@ -237,16 +244,16 @@ class Trainer:
                        "Training Loss": training_result,
                        "Learning Rate": self.lr_scheduler.get_last_lr()[0],
                        "Gradient Norm": self.last_grad_norm,
-                       "BCE loss validation": self.loss_components_validation['bce'],
-                       "SSIM loss validation": self.loss_components_validation['ssim'],
-                       "MAE loss validation": self.loss_components_validation['mae'],
-                       "IoU loss validation": self.loss_components_validation['iou'],
+                       "BCE loss validation": loss_comp_val_aver['bce'],
+                       "SSIM loss validation": loss_comp_val_aver['ssim'],
+                       "MAE loss validation": loss_comp_val_aver['mae'],
+                       "IoU loss validation": loss_comp_val_aver['iou'],
+                       "GDT loss validation": loss_comp_val_aver['gdt'],
                        "BCE loss training": self.loss_components_train['bce'],
                        "SSIM loss training": self.loss_components_train['ssim'],
                        "MAE loss training": self.loss_components_train['mae'],
                        "IoU loss training": self.loss_components_train['iou'],
                        "GDT loss training": self.loss_components_train['gdt'],
-                       "GDT loss validation": self.loss_components_validation['gdt']
                        },step=step_idx)
         accelerator.wait_for_everyone() #Log the average of the losses over the validation set
 
