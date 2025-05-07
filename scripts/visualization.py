@@ -289,7 +289,7 @@ def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], 
                     plt.imshow(Image.fromarray(erode_red(pt_red_pixels(gt_img, pred_img))))
 
                 plt.axis('off')
-                tit=p[i].split("/")[1]
+                tit=p[i].split("/")[2]
                 #Pick the correct score from the scores tensor
                 score=pred_scores[model_paths[i]][visualize_inds[im_ind]][metric]
                 #Display the score
