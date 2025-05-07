@@ -43,16 +43,16 @@ def get_field_names():
     Returns the field names for the table
     """
     metric_names={
-        'S': 'Smeasure',
-        'MAE': 'MAE',
-        'E': 'meanEm',
-        'F': 'maxFm',
-        'WF': 'wFmeasure',
-        'MBA': 'mBA',
-        'BIoU': 'meanBIoU',
-        'MSE': 'MSE',
+        'S': 'S measure',
+        'MAE': 'Mean Absolute Error',
+        'E': 'Mean E measure',
+        'F': 'Mean F measure',
+        'WF': 'Weighted F measure',
+        'MBA': 'Mean Boundary Accuracy',
+        'BIoU': 'Mean Boundary IoU',
+        'MSE': 'Mean Squared Error',
         'HCE': 'HCE',
-        'PA': 'PixAcc'
+        'PA': 'Pixel Accuracy'
     }
     return ["Model", "Test set", "Test image number", *[metric_names[metric] for metric in config.display_eval_metrics]]
 
@@ -101,7 +101,7 @@ def do_eval(args):
         #get the title of the row to be added to the table (model name, test set, test image number)
         title = prediction.split('/')
         title.append(image_number)
-        
+
         #get the scores
         scores = get_scores(list_gt, list_pred)
 
