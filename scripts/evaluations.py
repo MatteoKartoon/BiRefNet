@@ -16,30 +16,45 @@ config = Config()
 def get_scores(list_gt: List[str], list_pred: List[str]):
     """
     Takes the list of GT and preds files
-    Computes the scores for the predictions
+    Computes the scores for the predictions for the active metrics
     Return a row to be added to the table
     """
     #evaluate the predictions
     em, sm, fm, mae, mse, wfm, hce, mba, biou, pa = evaluator(
         gt_paths=list_gt,
         pred_paths=list_pred,
-        #metrics=args.metrics.split('+'), if we want display only few metrics
+        metrics=config.display_eval_metrics,
         verbose=config.verbose_eval
     )
 
     #create a list containing all the computed scores
-    scores = [
-        fm['curve'].max().round(3), wfm.round(3), mae.round(3), mse.round(3), sm.round(3), em['curve'].mean().round(3), int(hce.round()), 
-        em['curve'].max().round(3), fm['curve'].mean().round(3), em['adp'].round(3), fm['adp'].round(3),
-        mba.round(3), biou['curve'].max().round(3), biou['curve'].mean().round(3), pa.round(3)
-    ]
+    scores = {'S': sm.round(3), 'MAE': mae.round(3), 'E': em['curve'].mean().round(3), 'F': fm['curve'].mean().round(3), 'WF': wfm.round(3),
+              'MBA': mba.round(3), 'BIoU': biou['curve'].mean().round(3), 'MSE': mse.round(3), 'HCE': int(hce.round()), 'PA': pa.round(3)}
 
     #format the scores
-    for idx_score, score in enumerate(scores):
-        scores[idx_score] = '.' + format(score, '.3f').split('.')[-1] if score < 1  else format(score, '<4')
+    for metric, score in scores.items():
+        scores[metric] = '.' + format(score, '.3f').split('.')[-1] if score < 1  else format(score, '<4')
 
-    #create a list containing the scores
-    return scores
+    #create a list containing the active scores
+    return [scores[metric] for metric in config.display_eval_metrics]
+
+def get_field_names():
+    """
+    Returns the field names for the table
+    """
+    metric_names={
+        'S': 'Smeasure',
+        'MAE': 'MAE',
+        'E': 'meanEm',
+        'F': 'maxFm',
+        'WF': 'wFmeasure',
+        'MBA': 'mBA',
+        'BIoU': 'meanBIoU',
+        'MSE': 'MSE',
+        'HCE': 'HCE',
+        'PA': 'PixAcc'
+    }
+    return ["Model", "Test set", "Test image number", *[metric_names[metric] for metric in config.display_eval_metrics]]
 
 
 def do_eval(args):
@@ -58,7 +73,7 @@ def do_eval(args):
     filename = f"{args.save_dir}/eval_{current_time}.txt"
     tb = pt.PrettyTable()
     tb.vertical_char = '&'
-    tb.field_names = ["Model", "Test set", "maxFm", "wFmeasure", 'MAE', 'MSE', "Smeasure", "meanEm", "HCE", "maxEm", "meanFm", "adpEm", "adpFm", 'mBA', 'maxBIoU', 'meanBIoU', 'PixAcc']
+    tb.field_names = get_field_names()
 
     #loop over the prediction folders
     for prediction in args.predictions:
@@ -78,13 +93,15 @@ def do_eval(args):
         #get the list of files in the ground-truth and prediction folders
         list_gt = sorted([os.path.join(gt_pth, f) for f in os.listdir(gt_pth)])
         list_pred = sorted([os.path.join(pred_pth, f) for f in os.listdir(pred_pth)])
+        image_number = len(list_gt)
 
         #check if the ground-truth and prediction folders have the same elements
         assert len(list_gt) == len(list_pred), "The folder {} is not matching to the corresponding ground-truth folder".format(prediction)
 
-        #get the title of the row to be added to the table
+        #get the title of the row to be added to the table (model name, test set, test image number)
         title = prediction.split('/')
-
+        title.append(image_number)
+        
         #get the scores
         scores = get_scores(list_gt, list_pred)
 

@@ -40,6 +40,7 @@ class Config():
         self.start_epoch=245
         self.log_each_steps = 15
         self.lr_warm_up_type = None
+        self.display_eval_metrics = ['PA', 'BIoU', 'WF']
 
         self.finetune_last_epochs =-20
         self.lr = 1e-5
