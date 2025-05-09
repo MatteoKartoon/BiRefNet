@@ -126,9 +126,9 @@ class PixLoss(nn.Module):
     """
     Pixel loss for each refined map output.
     """
-    def __init__(self):
+    def __init__(self,config):
         super(PixLoss, self).__init__()
-        self.config = Config()
+        self.config = config
         self.lambdas_pix_last = {key: self.config.lambdas_pix_last[key] if self.config.lambdas_pix_last_activated[key] else 0. for key in self.config.lambdas_pix_last}
         self.criterions_last = {}
         if 'bce' in self.lambdas_pix_last and self.lambdas_pix_last['bce']:

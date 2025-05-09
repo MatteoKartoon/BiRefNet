@@ -35,6 +35,12 @@ parser.add_argument('--train_set', type=str, help='Training set')
 parser.add_argument('--validation_set', type=str, help='Validation set')
 parser.add_argument('--save_last_epochs', default=10, type=int)
 parser.add_argument('--save_each_epochs', default=2, type=int)
+#Parameters to be passed to the config class
+parser.add_argument('--learning_rate', default=None, type=float)
+parser.add_argument('--bce_with_logits', default=None, type=bool)
+parser.add_argument('--lambdas_pix_last', default=None, type=dict)
+parser.add_argument('--lambdas_pix_last_activated', default=None, type=dict)
+parser.add_argument('--run_name', default=None, type=str)
 args = parser.parse_args()
 
 if args.use_accelerate:
@@ -50,7 +56,13 @@ if args.use_accelerate:
     )
     args.dist = False
 
-config = Config()
+config = Config(
+    learning_rate=args.learning_rate,
+    bce_with_logits=args.bce_with_logits,
+    lambdas_pix_last=args.lambdas_pix_last,
+    lambdas_pix_last_activated=args.lambdas_pix_last_activated,
+    run_name=args.run_name
+)
 if config.rand_seed:
     set_seed(config.rand_seed)
 
@@ -217,7 +229,7 @@ class Trainer:
             )
 
         # Setting Losses
-        self.pix_loss = PixLoss()
+        self.pix_loss = PixLoss(config)
         self.cls_loss = ClsLoss()
         
         if config.out_ref:
