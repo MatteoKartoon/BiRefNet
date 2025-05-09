@@ -14,7 +14,7 @@ class Config():
         # TASK settings
         self.task = 'fine_tuning'
 
-        self.run_name = 'loss_component'
+        self.run_name = 'loss weights'
   
         self.prompt4loc = 'dense'
 
@@ -42,7 +42,7 @@ class Config():
         self.lr_warm_up_type = None
         self.display_eval_metrics = ['PA', 'BIoU', 'WF']
 
-        self.finetune_last_epochs =-20
+        self.finetune_last_epochs =0
         self.lr = 1e-5
         self.size = (1024, 1024) # wid, hei
         self.dynamic_size = (0, 0)   # wid, hei. It might cause errors in using compile.
@@ -76,14 +76,14 @@ class Config():
         # Loss
         self.bce_with_logits = False
         self.lambdas_pix_last = {
-            'bce': 30,
-            'iou': 0.5,
+            'bce': 1,
+            'iou': 6,
             'iou_patch': 0.5,
-            'mae': 100,
+            'mae': 25,
             'mse': 30,
             'triplet': 3,
             'reg': 100,
-            'ssim': 10,
+            'ssim': 20,
             'cnt': 5,
             'structure': 5,
         }

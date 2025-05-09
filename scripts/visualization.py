@@ -228,7 +228,7 @@ def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], 
     
     #get the number of model predictions and number of images to be visualized 
     gt_len = len(gt_paths)
-    picture_len = min(10,gt_len)
+    picture_len = gt_len
     picture_wids=len(model_paths)+2
     
     #Create a dictionary with the same shape as prediction_content dictionary, to save scores for each model and image
@@ -257,9 +257,17 @@ def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], 
         visualize_pictures = [(np.transpose([pred_content[model_path][i] for model_path in model_paths]), gt_paths[i], image_paths[i]) for i in visualize_inds]
 
         #initialize the figure
-        plt.figure(figsize=(5*picture_wids, 6*picture_len))
+        plt.figure(figsize=(5*picture_wids, 6*min(10,picture_len)))
         #Loop through all the interesting images, the models and the metrics
         for im_ind, (p, g, m) in enumerate(visualize_pictures):
+            #each 10 images save the figure and start a new one
+            if im_ind%10==0:
+                output_file = f"../e_results/comparison_{metric}__{args.testset}_{im_ind//10}.png"
+                print(f"Saving comparison for {metric} to: {output_file}")
+                plt.savefig(output_file, bbox_inches='tight', dpi=300)
+                plt.close()
+                plt.figure(figsize=(5*picture_wids, 6*min(10,picture_len-im_ind)))
+
             image_original=Image.open(m)
             image_gt=Image.open(g)
             
@@ -298,7 +306,7 @@ def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], 
         plt.tight_layout()
 
         #save the figure
-        output_file = f"../e_results/comparison_{metric}__{args.testset}.png"
+        output_file = f"../e_results/comparison_{metric}__{args.testset}_{picture_len//10+1}.png"
         print(f"Saving comparison for {metric} to: {output_file}")
         plt.savefig(output_file, bbox_inches='tight', dpi=300)
         plt.close()

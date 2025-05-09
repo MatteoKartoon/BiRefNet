@@ -14,7 +14,7 @@ _TYPE = np.float64
 alpha_mid = 128
 
 
-def evaluator(gt_paths, pred_paths, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE','PA'], verbose=False):
+def evaluator(gt_paths, pred_paths, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE','PA'], verbose=False, data_is_tensor=False):
     # define measures
     if 'E' in metrics:
         EM = EMeasure()
@@ -37,61 +37,84 @@ def evaluator(gt_paths, pred_paths, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 
     if 'PA' in metrics:
         PA = PixelAccuracy()
 
-    if isinstance(gt_paths, list) and isinstance(pred_paths, list):
-        # print(len(gt_paths), len(pred_paths))
-        assert len(gt_paths) == len(pred_paths)
+    metric_objects = [EM if 'E' in metrics else None,
+                      SM if 'S' in metrics else None,
+                      FM if 'F' in metrics else None,
+                      MAE if 'MAE' in metrics else None,
+                      MSE if 'MSE' in metrics else None,
+                      WFM if 'WF' in metrics else None,
+                      HCE if 'HCE' in metrics else None,
+                      MBA if 'MBA' in metrics else None,
+                      BIoU if 'BIoU' in metrics else None,
+                      PA if 'PA' in metrics else None]
 
-    for idx_sample in tqdm(range(len(gt_paths)), total=len(gt_paths)) if verbose else range(len(gt_paths)):
-        gt = gt_paths[idx_sample]
-        pred = pred_paths[idx_sample]
+    if data_is_tensor:
+        for gt_ary, pred_ary in zip(gt_paths, pred_paths):
+            gt_ary = gt_ary.detach().cpu().numpy()
+            pred_ary = pred_ary.detach().cpu().numpy()
+            gt_ary = (gt_ary * 255).astype(np.uint8)
+            pred_ary = (pred_ary * 255).astype(np.uint8)
+            return compute_scores(gt_ary, pred_ary, metrics, metric_objects, ske_path=None)
+    else:
+        if isinstance(gt_paths, list) and isinstance(pred_paths, list):
+            # print(len(gt_paths), len(pred_paths))
+            assert len(gt_paths) == len(pred_paths)
 
-        pred = pred[:-4] + '.png'
-        valid_extensions = ['.png', '.jpg', '.PNG', '.JPG', '.JPEG']
-        file_exists = False
-        for ext in valid_extensions:
-            if os.path.exists(pred[:-4] + ext):
-                pred = pred[:-4] + ext
-                file_exists = True
-                break
-        if file_exists:
-            pred_ary = cv2.imread(pred, cv2.IMREAD_GRAYSCALE)
-        else:
-            print('Not exists:', pred)
+        for idx_sample in tqdm(range(len(gt_paths)), total=len(gt_paths)) if verbose else range(len(gt_paths)):
+            gt = gt_paths[idx_sample]
+            pred = pred_paths[idx_sample]
 
-        gt_ary = cv2.imread(gt, cv2.IMREAD_GRAYSCALE)
-        pred_ary = cv2.resize(pred_ary, (gt_ary.shape[1], gt_ary.shape[0]))
-
-        if 'E' in metrics:
-            EM.step(pred=pred_ary, gt=gt_ary)
-        if 'S' in metrics:
-            SM.step(pred=pred_ary, gt=gt_ary)
-        if 'F' in metrics:
-            FM.step(pred=pred_ary, gt=gt_ary)
-        if 'MAE' in metrics:
-            MAE.step(pred=pred_ary, gt=gt_ary)
-        if 'MSE' in metrics:
-            MSE.step(pred=pred_ary, gt=gt_ary)
-        if 'WF' in metrics:
-            WFM.step(pred=pred_ary, gt=gt_ary)
-        if 'HCE' in metrics:
-            ske_path = gt.replace('/gt/', '/ske/')
-            if os.path.exists(ske_path):
-                ske_ary = cv2.imread(ske_path, cv2.IMREAD_GRAYSCALE)
-                ske_ary = ske_ary > 128
+            pred = pred[:-4] + '.png'
+            valid_extensions = ['.png', '.jpg', '.PNG', '.JPG', '.JPEG']
+            file_exists = False
+            for ext in valid_extensions:
+                if os.path.exists(pred[:-4] + ext):
+                    pred = pred[:-4] + ext
+                    file_exists = True
+                    break
+            if file_exists:
+                pred_ary = cv2.imread(pred, cv2.IMREAD_GRAYSCALE)
             else:
-                ske_ary = skeletonize(gt_ary > 128)
-                ske_save_dir = os.path.join(*ske_path.split(os.sep)[:-1])
-                if ske_path[0] == os.sep:
-                    ske_save_dir = os.sep + ske_save_dir
-                os.makedirs(ske_save_dir, exist_ok=True)
-                cv2.imwrite(ske_path, ske_ary.astype(np.uint8) * 255)
-            HCE.step(pred=pred_ary, gt=gt_ary, gt_ske=ske_ary)
-        if 'MBA' in metrics:
-            MBA.step(pred=pred_ary, gt=gt_ary)
-        if 'BIoU' in metrics:
-            BIoU.step(pred=pred_ary, gt=gt_ary)
-        if 'PA' in metrics:
-            PA.step(pred=pred_ary, gt=gt_ary)
+                print('Not exists:', pred)
+
+            gt_ary = cv2.imread(gt, cv2.IMREAD_GRAYSCALE)
+            pred_ary = cv2.resize(pred_ary, (gt_ary.shape[1], gt_ary.shape[0]))
+            return compute_scores(gt_ary, pred_ary, metrics, metric_objects, ske_path=gt.replace('/gt/', '/ske/'))
+
+
+def compute_scores(gt_ary, pred_ary, metrics, metric_objects, ske_path=None):
+    EM, SM, FM, MAE, MSE, WFM, HCE, MBA, BIoU, PA = metric_objects
+
+    if 'E' in metrics:
+        EM.step(pred=pred_ary, gt=gt_ary)
+    if 'S' in metrics:
+        SM.step(pred=pred_ary, gt=gt_ary)
+    if 'F' in metrics:
+        FM.step(pred=pred_ary, gt=gt_ary)
+    if 'MAE' in metrics:
+        MAE.step(pred=pred_ary, gt=gt_ary)
+    if 'MSE' in metrics:
+        MSE.step(pred=pred_ary, gt=gt_ary)
+    if 'WF' in metrics:
+        WFM.step(pred=pred_ary, gt=gt_ary)
+    if 'HCE' in metrics:
+        if os.path.exists(ske_path):
+            ske_ary = cv2.imread(ske_path, cv2.IMREAD_GRAYSCALE)
+            ske_ary = ske_ary > 128
+        else:
+            ske_ary = skeletonize(gt_ary > 128)
+            ske_save_dir = os.path.join(*ske_path.split(os.sep)[:-1])
+            if ske_path[0] == os.sep:
+                ske_save_dir = os.sep + ske_save_dir
+            os.makedirs(ske_save_dir, exist_ok=True)
+            cv2.imwrite(ske_path, ske_ary.astype(np.uint8) * 255)
+        HCE.step(pred=pred_ary, gt=gt_ary, gt_ske=ske_ary)
+    if 'MBA' in metrics:
+        MBA.step(pred=pred_ary, gt=gt_ary)
+    if 'BIoU' in metrics:
+        BIoU.step(pred=pred_ary, gt=gt_ary)
+    if 'PA' in metrics:
+        PA.step(pred=pred_ary, gt=gt_ary)
 
     if 'E' in metrics:
         em = EM.get_results()['em']

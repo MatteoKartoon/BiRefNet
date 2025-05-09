@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 from datetime import datetime as dt
 import wandb
+from typing import List
 
 if tuple(map(int, torch.__version__.split('+')[0].split(".")[:3])) >= (2, 5, 0):
     os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
@@ -15,6 +16,7 @@ from birefnet.config import Config
 from birefnet.loss import PixLoss, ClsLoss
 from birefnet.dataset import MyData
 from birefnet.models.birefnet import BiRefNet, BiRefNetC2F
+from birefnet.evaluation.metrics import evaluator
 from birefnet.utils import Logger, AverageMeter, set_seed, check_state_dict, init_wandb, get_lr_warm_up_scheduler
 
 from torch.utils.data.distributed import DistributedSampler
@@ -102,6 +104,30 @@ def prepare_dataloader(dataset: torch.utils.data.Dataset, batch_size: int, to_be
             dataset=dataset, batch_size=batch_size, num_workers=min(config.num_workers, batch_size), pin_memory=True,
             shuffle=is_train, sampler=None, drop_last=True, collate_fn=custom_collate_fn if is_train and config.dynamic_size != (0, 0) else None
         )
+
+
+def get_scores(list_gt: List[str], list_pred: List[str]):
+    """
+    Takes the list of GT and preds files
+    Computes the scores for the predictions for the active metrics
+    Return a dictionary containing the scores for the active metrics
+    """
+    #evaluate the predictions
+    em, sm, fm, mae, mse, wfm, hce, mba, biou, pa = evaluator(
+        gt_paths=list_gt,
+        pred_paths=list_pred,
+        metrics=config.display_eval_metrics,
+        verbose=config.verbose_eval,
+        data_is_tensor=True
+    )
+
+    #create a list containing all the computed scores
+    scores = {'S': sm, 'MAE': mae, 'E': em, 'F': fm, 'WF': wfm, 'MBA': mba, 'BIoU': biou, 'MSE': mse, 'HCE': hce, 'PA': pa}
+
+    scores = {metric:value['curve'].mean().round(3) if metric in ['E','F','BIoU'] else int(hce.round()) if metric == 'HCE' else value.round(3) for metric, value in scores.items()}
+
+    #create a list containing the active scores
+    return {metric:score for metric,score in scores.items() if metric in config.display_eval_metrics}
 
 
 def init_data_loaders(to_be_distributed):
@@ -204,8 +230,8 @@ class Trainer:
         self.loss_log = AverageMeter()
         self.val_loss_log = AverageMeter()
         
-        assert args.save_last_epochs > 0, "save_last_epochs must be greater than 0"
-        assert config.finetune_last_epochs < 0, "finetune_last_epochs must be less than 0"
+        assert args.save_last_epochs >= 0, "save_last_epochs must be greater than 0"
+        assert config.finetune_last_epochs <= 0, "finetune_last_epochs must be less than 0"
         self.save_last_epochs_start = args.epochs - args.save_last_epochs
         self.finetune_last_epochs_start = args.epochs + config.finetune_last_epochs
 
@@ -220,6 +246,7 @@ class Trainer:
     def iteration_over_batches_validation(self, epoch, info_progress=None, step_idx=None, training_result=None):
         #Loop over the batches
         loss_components_dict={k:0 for k in self.loss_components_train.keys()}
+        validation_metrics_accumulated = {k:0 for k in config.display_eval_metrics}
 
         #Compute the sum of the losses over the validation set batches
         for batch_idx, batch in enumerate(self.validation_loader):
@@ -227,14 +254,18 @@ class Trainer:
             # Logger
             for loss_name, loss_value in self.loss_components_validation.items():
                 loss_components_dict[loss_name]+=loss_value
+            for metric, score in self.validation_metrics.items():
+                validation_metrics_accumulated[metric]+=score
 
         #Compute the average of the losses over the validation set
         loss_components_dict={loss_name:loss_accumulated_value/len(self.validation_loader) for loss_name, loss_accumulated_value in loss_components_dict.items()}
+        validation_metrics_accumulated = {metric:score/len(self.validation_loader) for metric, score in validation_metrics_accumulated.items()}
 
         #For each loss type, compute the average between the devices
         average_total_loss=sum(loss_components_dict.values())
         loss_general_value=self.average_between_devices(average_total_loss)
         loss_components_dict={loss_name:self.average_between_devices(loss_accumulated_value) for loss_name, loss_accumulated_value in loss_components_dict.items()}
+        validation_metrics_accumulated = {metric:self.average_between_devices(score) for metric, score in validation_metrics_accumulated.items()}
         accelerator.wait_for_everyone()
 
         #add to the print string and log on wandb
@@ -255,6 +286,8 @@ class Trainer:
                        "MAE loss training": self.loss_components_train['mae'],
                        "IoU loss training": self.loss_components_train['iou'],
                        "GDT loss training": self.loss_components_train['gdt'],
+                       "Boundary IoU": validation_metrics_accumulated['BIoU'],
+                       "Pixel Accuracy": validation_metrics_accumulated['PA'],
                        },step=step_idx)
         accelerator.wait_for_everyone()
 
@@ -361,9 +394,23 @@ class Trainer:
                         mode='bilinear',
                         align_corners=True
                     )
-                    pred_image=wandb.Image(res, caption="Predicted")
+                    metric_scores = get_scores(gts[0], res[0])
+                    caption = f"Predicted\nPixel Accuracy: {metric_scores['PA']}, Boundary IoU: {metric_scores['BIoU']}"
+                    pred_image=wandb.Image(res, caption=caption)
                     wandb.log({"GT and prediction": [gt_image, pred_image]})
         else:
+            gt_list = []
+            pred_list = []
+            for i in range(gts.size(0)):
+                res = torch.nn.functional.interpolate(
+                        scaled_preds[3][i].sigmoid().unsqueeze(0),
+                        size=gts[i].shape[1:],
+                        mode='bilinear',
+                        align_corners=True
+                )
+                gt_list.append(gts[i][0])
+                pred_list.append(res[0][0])
+            self.validation_metrics = get_scores(gt_list, pred_list)
             self.val_loss_log.update(loss.item(), inputs.size(0))
 
     def train_epoch(self, epoch):
