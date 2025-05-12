@@ -1,6 +1,6 @@
 # Store parameters in variables
 models_path="photoroom+briaai+20250507__1229__epoch294"
-testset="test_generations_20250326_pose"
+testset="test_generations_20250411_ref_images"
 metrics="PA+BIoU"
 
 # Run visualization.py with the parameters

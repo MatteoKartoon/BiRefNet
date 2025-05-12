@@ -7,6 +7,8 @@ import torch.nn as nn
 import torch.optim as optim
 from datetime import datetime as dt
 import wandb
+from typing import List
+import ast
 
 if tuple(map(int, torch.__version__.split('+')[0].split(".")[:3])) >= (2, 5, 0):
     os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
@@ -15,6 +17,7 @@ from birefnet.config import Config
 from birefnet.loss import PixLoss, ClsLoss
 from birefnet.dataset import MyData
 from birefnet.models.birefnet import BiRefNet, BiRefNetC2F
+from birefnet.evaluation.metrics import evaluator
 from birefnet.utils import Logger, AverageMeter, set_seed, check_state_dict, init_wandb, get_lr_warm_up_scheduler
 
 from torch.utils.data.distributed import DistributedSampler
@@ -33,6 +36,13 @@ parser.add_argument('--train_set', type=str, help='Training set')
 parser.add_argument('--validation_set', type=str, help='Validation set')
 parser.add_argument('--save_last_epochs', default=10, type=int)
 parser.add_argument('--save_each_epochs', default=2, type=int)
+#Parameters to be passed to the config class
+parser.add_argument('--learning_rate', default=None, type=float)
+parser.add_argument('--bce_with_logits', default=None, type=bool)
+parser.add_argument('--lambdas_pix_last', default=None, type=ast.literal_eval)
+parser.add_argument('--lambdas_pix_last_activated', default=None, type=ast.literal_eval)
+parser.add_argument('--run_name', default=None, type=str)
+
 args = parser.parse_args()
 
 if args.use_accelerate:
@@ -48,7 +58,13 @@ if args.use_accelerate:
     )
     args.dist = False
 
-config = Config()
+config = Config(
+    learning_rate=args.learning_rate,
+    bce_with_logits=args.bce_with_logits,
+    lambdas_pix_last=args.lambdas_pix_last,
+    lambdas_pix_last_activated=args.lambdas_pix_last_activated,
+    run_name=args.run_name
+)
 if config.rand_seed:
     set_seed(config.rand_seed)
 
@@ -104,6 +120,29 @@ def prepare_dataloader(dataset: torch.utils.data.Dataset, batch_size: int, to_be
         )
 
 
+def get_scores(list_gt: List[str], list_pred: List[str]):
+    """
+    Takes the list of GT and preds files
+    Computes the scores for the predictions for the active metrics
+    Return a dictionary containing the scores for the active metrics
+    """
+    #evaluate the predictions
+    em, sm, fm, mae, mse, wfm, hce, mba, biou, pa = evaluator(
+        gts=list_gt,
+        preds=list_pred,
+        metrics=config.display_eval_metrics,
+        verbose=config.verbose_eval
+    )
+
+    #create a list containing all the computed scores
+    scores = {'S': sm, 'MAE': mae, 'E': em, 'F': fm, 'WF': wfm, 'MBA': mba, 'BIoU': biou, 'MSE': mse, 'HCE': hce, 'PA': pa}
+
+    scores = {metric:value['curve'].mean().round(3) if metric in ['E','F','BIoU'] else int(hce.round()) if metric == 'HCE' else value.round(3) for metric, value in scores.items()}
+
+    #create a list containing the active scores
+    return {metric:score for metric,score in scores.items() if metric in config.display_eval_metrics}
+
+
 def init_data_loaders(to_be_distributed):
     # Prepare datasets
     training_set = os.path.join(config.data_root_dir, config.task, args.train_set)
@@ -152,8 +191,9 @@ def init_models_optimizers(epochs, to_be_distributed):
     # Setting optimizer
     if config.optimizer == 'AdamW':
         optimizer = optim.AdamW(params=model.parameters(), lr=config.lr, weight_decay=1e-2)
-    elif config.optimizer == 'Adam':
-        optimizer = optim.Adam(params=model.parameters(), lr=config.lr, weight_decay=0)
+        for param_group in optimizer.param_groups:
+            param_group['initial_lr'] = config.lr
+
 
     # Create a lr warmup for first 10 epochs
     wu_epochs = 10
@@ -162,7 +202,7 @@ def init_models_optimizers(epochs, to_be_distributed):
     # Main scheduler after warmup
     main_scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer,
-        milestones=[lde if lde > 0 else epochs + lde + 1 for lde in config.lr_decay_epochs],
+        milestones=config.lr_decay_epochs,
         gamma=config.lr_decay_rate
     )
     
@@ -191,7 +231,7 @@ class Trainer:
             )
 
         # Setting Losses
-        self.pix_loss = PixLoss()
+        self.pix_loss = PixLoss(config)
         self.cls_loss = ClsLoss()
         
         if config.out_ref:
@@ -204,8 +244,8 @@ class Trainer:
         self.loss_log = AverageMeter()
         self.val_loss_log = AverageMeter()
         
-        assert args.save_last_epochs > 0, "save_last_epochs must be greater than 0"
-        assert config.finetune_last_epochs < 0, "finetune_last_epochs must be less than 0"
+        assert args.save_last_epochs >= 0, "save_last_epochs must be greater than 0"
+        assert config.finetune_last_epochs <= 0, "finetune_last_epochs must be less than 0"
         self.save_last_epochs_start = args.epochs - args.save_last_epochs
         self.finetune_last_epochs_start = args.epochs + config.finetune_last_epochs
 
@@ -220,6 +260,7 @@ class Trainer:
     def iteration_over_batches_validation(self, epoch, info_progress=None, step_idx=None, training_result=None):
         #Loop over the batches
         loss_components_dict={k:0 for k in self.loss_components_train.keys()}
+        validation_metrics_dict = {k:0 for k in config.display_eval_metrics}
 
         #Compute the sum of the losses over the validation set batches
         for batch_idx, batch in enumerate(self.validation_loader):
@@ -227,14 +268,18 @@ class Trainer:
             # Logger
             for loss_name, loss_value in self.loss_components_validation.items():
                 loss_components_dict[loss_name]+=loss_value
+            for metric, score in self.validation_metrics.items():
+                validation_metrics_dict[metric]+=score
 
         #Compute the average of the losses over the validation set
         loss_components_dict={loss_name:loss_accumulated_value/len(self.validation_loader) for loss_name, loss_accumulated_value in loss_components_dict.items()}
+        validation_metrics_dict = {metric:score/len(self.validation_loader) for metric, score in validation_metrics_dict.items()}
 
         #For each loss type, compute the average between the devices
         average_total_loss=sum(loss_components_dict.values())
         loss_general_value=self.average_between_devices(average_total_loss)
         loss_components_dict={loss_name:self.average_between_devices(loss_accumulated_value) for loss_name, loss_accumulated_value in loss_components_dict.items()}
+        validation_metrics_dict = {metric:self.average_between_devices(score) for metric, score in validation_metrics_dict.items()}
         accelerator.wait_for_everyone()
 
         #add to the print string and log on wandb
@@ -255,6 +300,8 @@ class Trainer:
                        "MAE loss training": self.loss_components_train['mae'],
                        "IoU loss training": self.loss_components_train['iou'],
                        "GDT loss training": self.loss_components_train['gdt'],
+                       "Boundary IoU": validation_metrics_dict['BIoU'],
+                       "Pixel Accuracy": validation_metrics_dict['PA'],
                        },step=step_idx)
         accelerator.wait_for_everyone()
 
@@ -361,9 +408,23 @@ class Trainer:
                         mode='bilinear',
                         align_corners=True
                     )
-                    pred_image=wandb.Image(res, caption="Predicted")
+                    metric_scores = get_scores(gts[0], res[0])
+                    caption = f"Predicted\nPixel Accuracy: {metric_scores['PA']}, Boundary IoU: {metric_scores['BIoU']}"
+                    pred_image=wandb.Image(res, caption=caption)
                     wandb.log({"GT and prediction": [gt_image, pred_image]})
         else:
+            gt_list = []
+            pred_list = []
+            for i in range(gts.size(0)):
+                res = torch.nn.functional.interpolate(
+                        scaled_preds[3][i].sigmoid().unsqueeze(0),
+                        size=gts[i].shape[1:],
+                        mode='bilinear',
+                        align_corners=True
+                )
+                gt_list.append(gts[i][0])
+                pred_list.append(res[0][0])
+            self.validation_metrics = get_scores(gt_list, pred_list)
             self.val_loss_log.update(loss.item(), inputs.size(0))
 
     def train_epoch(self, epoch):

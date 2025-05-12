@@ -157,8 +157,8 @@ def do_visualization(model_paths: list[str], gt_paths: list[str], image_paths: l
         for i, (pred_path, gt_path, image_path) in enumerate(visualize_pictures):
             #Evaluate the model predictions against the ground truth
             em, sm, fm, mae, mse, wfm, hce, mba, biou, pa = evaluator(
-                gt_paths=[gt_path],
-                pred_paths=[pred_path],
+                gts=[gt_path],
+                preds=[pred_path],
                 #metrics=args.metrics.split('+'), if we want display only few metrics
                 verbose=config.verbose_eval
             )
@@ -228,7 +228,7 @@ def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], 
     
     #get the number of model predictions and number of images to be visualized 
     gt_len = len(gt_paths)
-    picture_len = min(10,gt_len)
+    picture_max_len = 10
     picture_wids=len(model_paths)+2
     
     #Create a dictionary with the same shape as prediction_content dictionary, to save scores for each model and image
@@ -239,8 +239,8 @@ def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], 
             pred_path = pred_content[model_path][im_ind]
             #Evaluate the model predictions against the ground truth
             em, sm, fm, mae, mse, wfm, hce, mba, biou, pa = evaluator(
-                gt_paths=[im],
-                pred_paths=[pred_path],
+                gts=[im],
+                preds=[pred_path],
                 metrics=metrics,
                 verbose=config.verbose_eval
             )
@@ -252,31 +252,42 @@ def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], 
     #loop through all the metrics, and do a different visualization for each of them
     for metric in metrics:
         #Compute the most interesting picture_len images based on the metrics, and keep only them
-        visualize_inds=compute_interest(metric,pred_scores,picture_len,gt_len)
+        visualize_inds=compute_interest(metric,pred_scores,gt_len,gt_len)
         #select the pictures to be visualized
         visualize_pictures = [(np.transpose([pred_content[model_path][i] for model_path in model_paths]), gt_paths[i], image_paths[i]) for i in visualize_inds]
 
-        #initialize the figure
+        #initialize the figureù
+        picture_len = min(picture_max_len,gt_len)
         plt.figure(figsize=(5*picture_wids, 6*picture_len))
         #Loop through all the interesting images, the models and the metrics
         for im_ind, (p, g, m) in enumerate(visualize_pictures):
+            #each 10 images save the figure and start a new one
+            image_row=im_ind%picture_max_len
+            if image_row==0 and im_ind!=0:
+                output_file = f"../e_results/comparison_{metric}__{args.testset}_{im_ind//picture_max_len}.png"
+                print(f"Saving comparison for {metric} to: {output_file}")
+                plt.savefig(output_file, bbox_inches='tight', dpi=300)
+                plt.close()
+                picture_len = min(picture_max_len,gt_len-im_ind)
+                plt.figure(figsize=(5*picture_wids, 6*picture_len))
+
             image_original=Image.open(m)
             image_gt=Image.open(g)
-            
+
             # Display
-            plt.subplot(picture_len, picture_wids, picture_wids*im_ind+1)
+            plt.subplot(picture_len, picture_wids, picture_wids*image_row+1)
             plt.imshow(image_original)
             plt.axis('off')
             plt.title('Original',fontsize=20)
 
-            plt.subplot(picture_len, picture_wids, picture_wids*im_ind+2)
+            plt.subplot(picture_len, picture_wids, picture_wids*image_row+2)
             plt.imshow(image_gt)
             plt.axis('off')
             plt.title('Ground truth',fontsize=20)
             
             #for each model show the prediction
             for i in range(len(p)):
-                plt.subplot(picture_len, picture_wids, picture_wids*im_ind+3+i)
+                plt.subplot(picture_len, picture_wids, picture_wids*image_row+3+i)
 
                 # Read as cv2
                 gt_img = cv2.imread(g, cv2.IMREAD_GRAYSCALE)
@@ -298,7 +309,7 @@ def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], 
         plt.tight_layout()
 
         #save the figure
-        output_file = f"../e_results/comparison_{metric}__{args.testset}.png"
+        output_file = f"../e_results/comparison_{metric}__{args.testset}_{gt_len//picture_max_len+1}.png"
         print(f"Saving comparison for {metric} to: {output_file}")
         plt.savefig(output_file, bbox_inches='tight', dpi=300)
         plt.close()

@@ -1,11 +1,11 @@
 # Evaluation
-pred_path="20250507__1229__epoch294/test_generations_20250411_ref_images"
+pred_path="20250509__1638__epoch294/test_generations_20250411_ref_images"
 pred_path="${pred_path}+briaai/test_generations_20250411_ref_images"
 pred_path="${pred_path}+photoroom/test_generations_20250411_ref_images"
-pred_path="${pred_path}+20250507__1229__epoch294/test_generations_20250318_emotion"
+pred_path="${pred_path}+20250509__1638__epoch294/test_generations_20250318_emotion"
 pred_path="${pred_path}+briaai/test_generations_20250318_emotion"
 pred_path="${pred_path}+photoroom/test_generations_20250318_emotion"
-pred_path="${pred_path}+20250507__1229__epoch294/test_generations_20250326_pose"
+pred_path="${pred_path}+20250509__1638__epoch294/test_generations_20250326_pose"
 pred_path="${pred_path}+briaai/test_generations_20250326_pose"
 pred_path="${pred_path}+photoroom/test_generations_20250326_pose"
 
