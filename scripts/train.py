@@ -192,8 +192,9 @@ def init_models_optimizers(epochs, to_be_distributed):
     # Setting optimizer
     if config.optimizer == 'AdamW':
         optimizer = optim.AdamW(params=model.parameters(), lr=config.lr, weight_decay=1e-2)
-    elif config.optimizer == 'Adam':
-        optimizer = optim.Adam(params=model.parameters(), lr=config.lr, weight_decay=0)
+        for param_group in optimizer.param_groups:
+            param_group['initial_lr'] = config.lr
+
 
     # Create a lr warmup for first 10 epochs
     wu_epochs = 10
@@ -202,9 +203,8 @@ def init_models_optimizers(epochs, to_be_distributed):
     # Main scheduler after warmup
     main_scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer,
-        milestones=[lde if lde > 0 else epochs + lde + 1 for lde in config.lr_decay_epochs],
-        gamma=config.lr_decay_rate,
-        last_epoch=config.lr_decay_epochs
+        milestones=config.lr_decay_epochs,
+        gamma=config.lr_decay_rate
     )
     
     if warmup_scheduler != None:
