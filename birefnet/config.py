@@ -1,9 +1,10 @@
 import os
 import math
+from datetime import datetime as dt
 
 #Set the default values for the parameters
 DEFAULT_LR = 1e-5
-DEFAULT_RUN_NAME = 'lr decay'
+DEFAULT_RUN_NAME = dt.now().strftime("%Y%m%d_%H%M%S")
 DEFAULT_BCE_WITH_LOGITS = False
 DEFAULT_LAMBDAS_PIX_LAST = {
     'bce': 30,

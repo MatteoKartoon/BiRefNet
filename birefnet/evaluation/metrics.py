@@ -56,7 +56,7 @@ def evaluator(gts, preds, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'M
             gt_ary = (gt_ary * 255).astype(np.uint8)
             pred_ary = (pred_ary * 255).astype(np.uint8)
             metric_objects = compute_scores(gt_ary, pred_ary, metrics, metric_objects, ske_path=None)
-    else:
+    elif isinstance(gts[0], str):
         if isinstance(gts, list) and isinstance(preds, list):
             assert len(gts) == len(preds)
 
@@ -80,6 +80,8 @@ def evaluator(gts, preds, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'M
             gt_ary = cv2.imread(gt, cv2.IMREAD_GRAYSCALE)
             pred_ary = cv2.resize(pred_ary, (gt_ary.shape[1], gt_ary.shape[0]))
             metric_objects = compute_scores(gt_ary, pred_ary, metrics, metric_objects, ske_path=gt.replace('/gt/', '/ske/'))
+    else:
+        raise ValueError("Invalid type for ground truth mask")
 
     EM, SM, FM, MAE, MSE, WFM, HCE, MBA, BIoU, PA = metric_objects
 
