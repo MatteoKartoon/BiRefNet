@@ -1,40 +1,46 @@
 import os
 import math
 
+#Set the default values for the parameters
+DEFAULT_LR = 1e-5
+DEFAULT_RUN_NAME = 'lr decay'
+DEFAULT_BCE_WITH_LOGITS = False
+DEFAULT_LAMBDAS_PIX_LAST = {
+    'bce': 30,
+    'iou': 6,
+    'iou_patch': 0.5,
+    'mae': 25,
+    'mse': 30,
+    'triplet': 3,
+    'reg': 100,
+    'ssim': 20,
+    'cnt': 5,
+    'structure': 5,
+}
+DEFAULT_LAMBDAS_PIX_LAST_ACTIVATED = {
+    'bce': True,
+    'iou': True,
+    'iou_patch': False,
+    'mae': True,
+    'mse': False,
+    'triplet': False,
+    'reg': False,   
+    'ssim': True,
+    'cnt': False,
+    'structure': False,
+}
 
 class Config():
     def __init__(self, learning_rate=None, bce_with_logits=None, lambdas_pix_last=None, lambdas_pix_last_activated=None, run_name=None) -> None:
         # PATH settings
         # Make up your file system as: SYS_HOME_DIR/codes/dis/BiRefNet, SYS_HOME_DIR/datasets/dis/xx, SYS_HOME_DIR/weights/xx
 
-        self.lr = learning_rate if learning_rate is not None else 1e-4
-        self.run_name = run_name if run_name is not None else 'lr decay'
-        self.bce_with_logits = bce_with_logits if bce_with_logits is not None else False
-
-        self.lambdas_pix_last = lambdas_pix_last if lambdas_pix_last is not None else {
-            'bce': 30,
-            'iou': 6,
-            'iou_patch': 0.5,
-            'mae': 25,
-            'mse': 30,
-            'triplet': 3,
-            'reg': 100,
-            'ssim': 20,
-            'cnt': 5,
-            'structure': 5,
-        }
-        self.lambdas_pix_last_activated = lambdas_pix_last_activated if lambdas_pix_last_activated is not None else {
-            'bce': True,
-            'iou': True,
-            'iou_patch': False,
-            'mae': True,
-            'mse': False,
-            'triplet': False,
-            'reg': False,   
-            'ssim': True,
-            'cnt': False,
-            'structure': False,
-        }
+        #If they are not provided, use the default values
+        self.lr = learning_rate if learning_rate is not None else DEFAULT_LR
+        self.run_name = run_name if run_name is not None else DEFAULT_RUN_NAME
+        self.bce_with_logits = bce_with_logits if bce_with_logits is not None else DEFAULT_BCE_WITH_LOGITS
+        self.lambdas_pix_last = lambdas_pix_last if lambdas_pix_last is not None else DEFAULT_LAMBDAS_PIX_LAST
+        self.lambdas_pix_last_activated = lambdas_pix_last_activated if lambdas_pix_last_activated is not None else DEFAULT_LAMBDAS_PIX_LAST_ACTIVATED
 
         absolute_path = os.path.dirname(__file__)
         self.sys_home_dir = absolute_path.replace('/codes/dis/BiRefNet/birefnet', '')
@@ -99,7 +105,7 @@ class Config():
         # TRAINING settings - inactive
         self.preproc_methods = ['flip', 'enhance', 'rotate', 'pepper', 'crop'][:4 if not self.background_color_synthesis else 1]
         self.optimizer = 'AdamW'
-        self.lr_decay_epochs = [250, 270]
+        self.lr_decay_epochs = [5, 25]
         self.lr_decay_rate = 0.1
 
         self.lambdas_cls = {

@@ -7,6 +7,7 @@ from scipy.ndimage import convolve, distance_transform_edt as bwdist
 from skimage.morphology import skeletonize
 from skimage.morphology import disk
 from skimage.measure import label
+import torch
 
 
 _EPS = np.spacing(1)
@@ -14,7 +15,7 @@ _TYPE = np.float64
 alpha_mid = 128
 
 
-def evaluator(gt_paths, pred_paths, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE','PA'], verbose=False, data_is_tensor=False):
+def evaluator(gts, preds, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE','PA'], verbose=False):
     # define measures
     if 'E' in metrics:
         EM = EMeasure()
@@ -48,20 +49,20 @@ def evaluator(gt_paths, pred_paths, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 
                       BIoU if 'BIoU' in metrics else None,
                       PA if 'PA' in metrics else None]
 
-    if data_is_tensor:
-        for gt_ary, pred_ary in zip(gt_paths, pred_paths):
+    if isinstance(gts, torch.Tensor):
+        for gt_ary, pred_ary in zip(gts, preds):
             gt_ary = gt_ary.detach().cpu().numpy()
             pred_ary = pred_ary.detach().cpu().numpy()
             gt_ary = (gt_ary * 255).astype(np.uint8)
             pred_ary = (pred_ary * 255).astype(np.uint8)
             metric_objects = compute_scores(gt_ary, pred_ary, metrics, metric_objects, ske_path=None)
     else:
-        if isinstance(gt_paths, list) and isinstance(pred_paths, list):
-            assert len(gt_paths) == len(pred_paths)
+        if isinstance(gts, list) and isinstance(preds, list):
+            assert len(gts) == len(preds)
 
-        for idx_sample in tqdm(range(len(gt_paths)), total=len(gt_paths)) if verbose else range(len(gt_paths)):
-            gt = gt_paths[idx_sample]
-            pred = pred_paths[idx_sample]
+        for idx_sample in tqdm(range(len(gts)), total=len(gts)) if verbose else range(len(gts)):
+            gt = gts[idx_sample]
+            pred = preds[idx_sample]
 
             pred = pred[:-4] + '.png'
             valid_extensions = ['.png', '.jpg', '.PNG', '.JPG', '.JPEG']

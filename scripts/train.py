@@ -131,8 +131,7 @@ def get_scores(list_gt: List[str], list_pred: List[str]):
         gt_paths=list_gt,
         pred_paths=list_pred,
         metrics=config.display_eval_metrics,
-        verbose=config.verbose_eval,
-        data_is_tensor=True
+        verbose=config.verbose_eval
     )
 
     #create a list containing all the computed scores
@@ -261,7 +260,7 @@ class Trainer:
     def iteration_over_batches_validation(self, epoch, info_progress=None, step_idx=None, training_result=None):
         #Loop over the batches
         loss_components_dict={k:0 for k in self.loss_components_train.keys()}
-        validation_metrics_accumulated = {k:0 for k in config.display_eval_metrics}
+        validation_metrics_dict = {k:0 for k in config.display_eval_metrics}
 
         #Compute the sum of the losses over the validation set batches
         for batch_idx, batch in enumerate(self.validation_loader):
@@ -270,17 +269,17 @@ class Trainer:
             for loss_name, loss_value in self.loss_components_validation.items():
                 loss_components_dict[loss_name]+=loss_value
             for metric, score in self.validation_metrics.items():
-                validation_metrics_accumulated[metric]+=score
+                validation_metrics_dict[metric]+=score
 
         #Compute the average of the losses over the validation set
         loss_components_dict={loss_name:loss_accumulated_value/len(self.validation_loader) for loss_name, loss_accumulated_value in loss_components_dict.items()}
-        validation_metrics_accumulated = {metric:score/len(self.validation_loader) for metric, score in validation_metrics_accumulated.items()}
+        validation_metrics_dict = {metric:score/len(self.validation_loader) for metric, score in validation_metrics_dict.items()}
 
         #For each loss type, compute the average between the devices
         average_total_loss=sum(loss_components_dict.values())
         loss_general_value=self.average_between_devices(average_total_loss)
         loss_components_dict={loss_name:self.average_between_devices(loss_accumulated_value) for loss_name, loss_accumulated_value in loss_components_dict.items()}
-        validation_metrics_accumulated = {metric:self.average_between_devices(score) for metric, score in validation_metrics_accumulated.items()}
+        validation_metrics_dict = {metric:self.average_between_devices(score) for metric, score in validation_metrics_dict.items()}
         accelerator.wait_for_everyone()
 
         #add to the print string and log on wandb
@@ -301,8 +300,8 @@ class Trainer:
                        "MAE loss training": self.loss_components_train['mae'],
                        "IoU loss training": self.loss_components_train['iou'],
                        "GDT loss training": self.loss_components_train['gdt'],
-                       "Boundary IoU": validation_metrics_accumulated['BIoU'],
-                       "Pixel Accuracy": validation_metrics_accumulated['PA'],
+                       "Boundary IoU": validation_metrics_dict['BIoU'],
+                       "Pixel Accuracy": validation_metrics_dict['PA'],
                        },step=step_idx)
         accelerator.wait_for_everyone()
 
