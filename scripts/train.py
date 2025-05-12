@@ -128,8 +128,8 @@ def get_scores(list_gt: List[str], list_pred: List[str]):
     """
     #evaluate the predictions
     em, sm, fm, mae, mse, wfm, hce, mba, biou, pa = evaluator(
-        gt_paths=list_gt,
-        pred_paths=list_pred,
+        gts=list_gt,
+        preds=list_pred,
         metrics=config.display_eval_metrics,
         verbose=config.verbose_eval
     )

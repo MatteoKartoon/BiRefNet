@@ -157,8 +157,8 @@ def do_visualization(model_paths: list[str], gt_paths: list[str], image_paths: l
         for i, (pred_path, gt_path, image_path) in enumerate(visualize_pictures):
             #Evaluate the model predictions against the ground truth
             em, sm, fm, mae, mse, wfm, hce, mba, biou, pa = evaluator(
-                gt_paths=[gt_path],
-                pred_paths=[pred_path],
+                gts=[gt_path],
+                preds=[pred_path],
                 #metrics=args.metrics.split('+'), if we want display only few metrics
                 verbose=config.verbose_eval
             )
@@ -239,8 +239,8 @@ def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], 
             pred_path = pred_content[model_path][im_ind]
             #Evaluate the model predictions against the ground truth
             em, sm, fm, mae, mse, wfm, hce, mba, biou, pa = evaluator(
-                gt_paths=[im],
-                pred_paths=[pred_path],
+                gts=[im],
+                preds=[pred_path],
                 metrics=metrics,
                 verbose=config.verbose_eval
             )

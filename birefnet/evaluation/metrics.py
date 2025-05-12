@@ -49,7 +49,7 @@ def evaluator(gts, preds, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'M
                       BIoU if 'BIoU' in metrics else None,
                       PA if 'PA' in metrics else None]
 
-    if isinstance(gts, torch.Tensor):
+    if isinstance(gts[0], torch.Tensor):
         for gt_ary, pred_ary in zip(gts, preds):
             gt_ary = gt_ary.detach().cpu().numpy()
             pred_ary = pred_ary.detach().cpu().numpy()
