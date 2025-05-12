@@ -54,10 +54,9 @@ def evaluator(gt_paths, pred_paths, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 
             pred_ary = pred_ary.detach().cpu().numpy()
             gt_ary = (gt_ary * 255).astype(np.uint8)
             pred_ary = (pred_ary * 255).astype(np.uint8)
-            return compute_scores(gt_ary, pred_ary, metrics, metric_objects, ske_path=None)
+            metric_objects = compute_scores(gt_ary, pred_ary, metrics, metric_objects, ske_path=None)
     else:
         if isinstance(gt_paths, list) and isinstance(pred_paths, list):
-            # print(len(gt_paths), len(pred_paths))
             assert len(gt_paths) == len(pred_paths)
 
         for idx_sample in tqdm(range(len(gt_paths)), total=len(gt_paths)) if verbose else range(len(gt_paths)):
@@ -79,42 +78,9 @@ def evaluator(gt_paths, pred_paths, metrics=['S', 'MAE', 'E', 'F', 'WF', 'MBA', 
 
             gt_ary = cv2.imread(gt, cv2.IMREAD_GRAYSCALE)
             pred_ary = cv2.resize(pred_ary, (gt_ary.shape[1], gt_ary.shape[0]))
-            return compute_scores(gt_ary, pred_ary, metrics, metric_objects, ske_path=gt.replace('/gt/', '/ske/'))
+            metric_objects = compute_scores(gt_ary, pred_ary, metrics, metric_objects, ske_path=gt.replace('/gt/', '/ske/'))
 
-
-def compute_scores(gt_ary, pred_ary, metrics, metric_objects, ske_path=None):
     EM, SM, FM, MAE, MSE, WFM, HCE, MBA, BIoU, PA = metric_objects
-
-    if 'E' in metrics:
-        EM.step(pred=pred_ary, gt=gt_ary)
-    if 'S' in metrics:
-        SM.step(pred=pred_ary, gt=gt_ary)
-    if 'F' in metrics:
-        FM.step(pred=pred_ary, gt=gt_ary)
-    if 'MAE' in metrics:
-        MAE.step(pred=pred_ary, gt=gt_ary)
-    if 'MSE' in metrics:
-        MSE.step(pred=pred_ary, gt=gt_ary)
-    if 'WF' in metrics:
-        WFM.step(pred=pred_ary, gt=gt_ary)
-    if 'HCE' in metrics:
-        if os.path.exists(ske_path):
-            ske_ary = cv2.imread(ske_path, cv2.IMREAD_GRAYSCALE)
-            ske_ary = ske_ary > 128
-        else:
-            ske_ary = skeletonize(gt_ary > 128)
-            ske_save_dir = os.path.join(*ske_path.split(os.sep)[:-1])
-            if ske_path[0] == os.sep:
-                ske_save_dir = os.sep + ske_save_dir
-            os.makedirs(ske_save_dir, exist_ok=True)
-            cv2.imwrite(ske_path, ske_ary.astype(np.uint8) * 255)
-        HCE.step(pred=pred_ary, gt=gt_ary, gt_ske=ske_ary)
-    if 'MBA' in metrics:
-        MBA.step(pred=pred_ary, gt=gt_ary)
-    if 'BIoU' in metrics:
-        BIoU.step(pred=pred_ary, gt=gt_ary)
-    if 'PA' in metrics:
-        PA.step(pred=pred_ary, gt=gt_ary)
 
     if 'E' in metrics:
         em = EM.get_results()['em']
@@ -158,6 +124,42 @@ def compute_scores(gt_ary, pred_ary, metrics, metric_objects, ske_path=None):
         pa = np.float64(-1)
 
     return em, sm, fm, mae, mse, wfm, hce, mba, biou, pa
+
+
+def compute_scores(gt_ary, pred_ary, metrics, metric_objects, ske_path=None):
+    EM, SM, FM, MAE, MSE, WFM, HCE, MBA, BIoU, PA = metric_objects
+
+    if 'E' in metrics:
+        EM.step(pred=pred_ary, gt=gt_ary)
+    if 'S' in metrics:
+        SM.step(pred=pred_ary, gt=gt_ary)
+    if 'F' in metrics:
+        FM.step(pred=pred_ary, gt=gt_ary)
+    if 'MAE' in metrics:
+        MAE.step(pred=pred_ary, gt=gt_ary)
+    if 'MSE' in metrics:
+        MSE.step(pred=pred_ary, gt=gt_ary)
+    if 'WF' in metrics:
+        WFM.step(pred=pred_ary, gt=gt_ary)
+    if 'HCE' in metrics:
+        if os.path.exists(ske_path):
+            ske_ary = cv2.imread(ske_path, cv2.IMREAD_GRAYSCALE)
+            ske_ary = ske_ary > 128
+        else:
+            ske_ary = skeletonize(gt_ary > 128)
+            ske_save_dir = os.path.join(*ske_path.split(os.sep)[:-1])
+            if ske_path[0] == os.sep:
+                ske_save_dir = os.sep + ske_save_dir
+            os.makedirs(ske_save_dir, exist_ok=True)
+            cv2.imwrite(ske_path, ske_ary.astype(np.uint8) * 255)
+        HCE.step(pred=pred_ary, gt=gt_ary, gt_ske=ske_ary)
+    if 'MBA' in metrics:
+        MBA.step(pred=pred_ary, gt=gt_ary)
+    if 'BIoU' in metrics:
+        BIoU.step(pred=pred_ary, gt=gt_ary)
+    if 'PA' in metrics:
+        PA.step(pred=pred_ary, gt=gt_ary)
+    return EM, SM, FM, MAE, MSE, WFM, HCE, MBA, BIoU, PA
 
 
 def _prepare_data(pred: np.ndarray, gt: np.ndarray) -> tuple:

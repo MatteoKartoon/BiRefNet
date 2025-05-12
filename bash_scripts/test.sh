@@ -1,6 +1,6 @@
 devices="0,1"
-ckpt_path="20250507__1229/epoch_294.pth"
-testsets="test_generations_20250411_ref_images"
+ckpt_path="20250509__1638/epoch_294.pth"
+testsets="test_generations_20250318_emotion"
 
 cd ../scripts
 # Inference

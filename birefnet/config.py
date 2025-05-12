@@ -7,12 +7,12 @@ class Config():
         # PATH settings
         # Make up your file system as: SYS_HOME_DIR/codes/dis/BiRefNet, SYS_HOME_DIR/datasets/dis/xx, SYS_HOME_DIR/weights/xx
 
-        self.lr = learning_rate if learning_rate is not None else 1e-5
-        self.run_name = run_name if run_name is not None else 'loss weights'
+        self.lr = learning_rate if learning_rate is not None else 1e-4
+        self.run_name = run_name if run_name is not None else 'lr decay'
         self.bce_with_logits = bce_with_logits if bce_with_logits is not None else False
 
         self.lambdas_pix_last = lambdas_pix_last if lambdas_pix_last is not None else {
-            'bce': 1,
+            'bce': 30,
             'iou': 6,
             'iou_patch': 0.5,
             'mae': 25,
@@ -99,8 +99,8 @@ class Config():
         # TRAINING settings - inactive
         self.preproc_methods = ['flip', 'enhance', 'rotate', 'pepper', 'crop'][:4 if not self.background_color_synthesis else 1]
         self.optimizer = 'AdamW'
-        self.lr_decay_epochs = [1e5]    # Set to negative N to decay the lr in the last N-th epoch.
-        self.lr_decay_rate = 0.5
+        self.lr_decay_epochs = [250, 270]
+        self.lr_decay_rate = 0.1
 
         self.lambdas_cls = {
             'ce': 5.0

@@ -8,6 +8,7 @@ import torch.optim as optim
 from datetime import datetime as dt
 import wandb
 from typing import List
+import ast
 
 if tuple(map(int, torch.__version__.split('+')[0].split(".")[:3])) >= (2, 5, 0):
     os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
@@ -38,9 +39,10 @@ parser.add_argument('--save_each_epochs', default=2, type=int)
 #Parameters to be passed to the config class
 parser.add_argument('--learning_rate', default=None, type=float)
 parser.add_argument('--bce_with_logits', default=None, type=bool)
-parser.add_argument('--lambdas_pix_last', default=None, type=dict)
-parser.add_argument('--lambdas_pix_last_activated', default=None, type=dict)
+parser.add_argument('--lambdas_pix_last', default=None, type=ast.literal_eval)
+parser.add_argument('--lambdas_pix_last_activated', default=None, type=ast.literal_eval)
 parser.add_argument('--run_name', default=None, type=str)
+
 args = parser.parse_args()
 
 if args.use_accelerate:
@@ -201,7 +203,8 @@ def init_models_optimizers(epochs, to_be_distributed):
     main_scheduler = torch.optim.lr_scheduler.MultiStepLR(
         optimizer,
         milestones=[lde if lde > 0 else epochs + lde + 1 for lde in config.lr_decay_epochs],
-        gamma=config.lr_decay_rate
+        gamma=config.lr_decay_rate,
+        last_epoch=config.lr_decay_epochs
     )
     
     if warmup_scheduler != None:

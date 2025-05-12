@@ -1,32 +1,10 @@
-run_name="loss weights"
+run_name="experiment1"
 learning_rate=1e-5
 bce_with_logits=False
 
-lambdas_pix_last=(
-    ["bce"]=1
-    ["iou"]=6
-    ["iou_patch"]=0.5
-    ["mae"]=25
-    ["mse"]=30
-    ["triplet"]=3
-    ["reg"]=100
-    ["ssim"]=20
-    ["cnt"]=5
-    ["structure"]=5
-)
+lambdas_pix_last='{"bce": 1, "iou": 6, "iou_patch": 0.5, "mae": 25, "mse": 30, "triplet": 3, "reg": 100, "ssim": 20, "cnt": 5, "structure": 5}'
 
-lambdas_pix_last_activated=(
-    ["bce"]=True
-    ["iou"]=True
-    ["iou_patch"]=False
-    ["mae"]=True
-    ["mse"]=False
-    ["triplet"]=False
-    ["reg"]=False
-    ["ssim"]=True
-    ["cnt"]=False
-    ["structure"]=False
-)
+lambdas_pix_last_activated='{"bce": True, "iou": True, "iou_patch": False, "mae": True, "mse": False, "triplet": False, "reg": False, "ssim": True, "cnt": False, "structure": False}'
 
 #!/bin/bash
 # Run script
@@ -60,45 +38,24 @@ accelerate launch --multi_gpu --num_processes $((nproc_per_node+1)) \
     --save_each_epochs ${save_each_epochs} \
     --learning_rate $learning_rate \
     --bce_with_logits $bce_with_logits \
-    --lambdas_pix_last $lambdas_pix_last \
-    --lambdas_pix_last_activated $lambdas_pix_last_activated  \
+    --lambdas_pix_last "$lambdas_pix_last" \
+    --lambdas_pix_last_activated "$lambdas_pix_last_activated"  \
     --run_name $run_name
 
 echo Training finished at $(date)
 
 
+wait
 
 
 
-run_name="loss weights"
+run_name="experiment2"
 learning_rate=1e-5
-bce_with_logits=false
+bce_with_logits=False
 
-lambdas_pix_last=(
-    ["bce"]=1
-    ["iou"]=6
-    ["iou_patch"]=0.5
-    ["mae"]=25
-    ["mse"]=30
-    ["triplet"]=3
-    ["reg"]=100
-    ["ssim"]=20
-    ["cnt"]=5
-    ["structure"]=5
-)
+lambdas_pix_last='{"bce": 1, "iou": 6, "iou_patch": 0.5, "mae": 25, "mse": 30, "triplet": 3, "reg": 100, "ssim": 20, "cnt": 5, "structure": 5}'
 
-lambdas_pix_last_activated=(
-    ["bce"]=true
-    ["iou"]=true
-    ["iou_patch"]=false
-    ["mae"]=true
-    ["mse"]=false
-    ["triplet"]=false
-    ["reg"]=false
-    ["ssim"]=true
-    ["cnt"]=false
-    ["structure"]=false
-)
+lambdas_pix_last_activated='{"bce": True, "iou": True, "iou_patch": False, "mae": True, "mse": False, "triplet": False, "reg": False, "ssim": True, "cnt": False, "structure": False}'
 
 #!/bin/bash
 # Run script
@@ -132,8 +89,8 @@ accelerate launch --multi_gpu --num_processes $((nproc_per_node+1)) \
     --save_each_epochs ${save_each_epochs} \
     --learning_rate $learning_rate \
     --bce_with_logits $bce_with_logits \
-    --lambdas_pix_last $lambdas_pix_last \
-    --lambdas_pix_last_activated $lambdas_pix_last_activated \
+    --lambdas_pix_last "$lambdas_pix_last" \
+    --lambdas_pix_last_activated "$lambdas_pix_last_activated"  \
     --run_name $run_name
 
 echo Training finished at $(date)
