@@ -8,13 +8,13 @@ DEFAULT_RUN_NAME = dt.now().strftime("%Y%m%d_%H%M%S")
 DEFAULT_BCE_WITH_LOGITS = False
 DEFAULT_LAMBDAS_PIX_LAST = {
     'bce': 30,
-    'iou': 6,
+    'iou': 0.5,
     'iou_patch': 0.5,
-    'mae': 25,
+    'mae': 100,
     'mse': 30,
     'triplet': 3,
     'reg': 100,
-    'ssim': 20,
+    'ssim': 10,
     'cnt': 5,
     'structure': 5,
 }
@@ -30,9 +30,11 @@ DEFAULT_LAMBDAS_PIX_LAST_ACTIVATED = {
     'cnt': False,
     'structure': False,
 }
+DEFAULT_LR_DECAY_EPOCHS = [5, 25]
+DEFAULT_LR_DECAY_RATE = 0.1
 
 class Config():
-    def __init__(self, learning_rate=None, bce_with_logits=None, lambdas_pix_last=None, lambdas_pix_last_activated=None, run_name=None) -> None:
+    def __init__(self, learning_rate=None, bce_with_logits=None, lambdas_pix_last=None, lambdas_pix_last_activated=None, run_name=None, lr_decay_epochs=None, lr_decay_rate=None) -> None:
         # PATH settings
         # Make up your file system as: SYS_HOME_DIR/codes/dis/BiRefNet, SYS_HOME_DIR/datasets/dis/xx, SYS_HOME_DIR/weights/xx
 
@@ -42,6 +44,8 @@ class Config():
         self.bce_with_logits = bce_with_logits if bce_with_logits is not None else DEFAULT_BCE_WITH_LOGITS
         self.lambdas_pix_last = lambdas_pix_last if lambdas_pix_last is not None else DEFAULT_LAMBDAS_PIX_LAST
         self.lambdas_pix_last_activated = lambdas_pix_last_activated if lambdas_pix_last_activated is not None else DEFAULT_LAMBDAS_PIX_LAST_ACTIVATED
+        self.lr_decay_epochs = lr_decay_epochs if lr_decay_epochs is not None else DEFAULT_LR_DECAY_EPOCHS
+        self.lr_decay_rate = lr_decay_rate if lr_decay_rate is not None else DEFAULT_LR_DECAY_RATE
 
         absolute_path = os.path.dirname(__file__)
         self.sys_home_dir = absolute_path.replace('/codes/dis/BiRefNet/birefnet', '')
@@ -77,7 +81,7 @@ class Config():
         self.lr_warm_up_type = None
         self.display_eval_metrics = ['PA', 'BIoU', 'WF']
 
-        self.finetune_last_epochs =0
+        self.finetune_last_epochs =-1
         
         self.size = (1024, 1024) # wid, hei
         self.dynamic_size = (0, 0)   # wid, hei. It might cause errors in using compile.
@@ -106,8 +110,6 @@ class Config():
         # TRAINING settings - inactive
         self.preproc_methods = ['flip', 'enhance', 'rotate', 'pepper', 'crop'][:4 if not self.background_color_synthesis else 1]
         self.optimizer = 'AdamW'
-        self.lr_decay_epochs = [5, 25]
-        self.lr_decay_rate = 0.1
 
         self.lambdas_cls = {
             'ce': 5.0

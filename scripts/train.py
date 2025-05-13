@@ -42,6 +42,8 @@ parser.add_argument('--bce_with_logits', default=None, type=bool)
 parser.add_argument('--lambdas_pix_last', default=None, type=ast.literal_eval)
 parser.add_argument('--lambdas_pix_last_activated', default=None, type=ast.literal_eval)
 parser.add_argument('--run_name', default=None, type=str)
+parser.add_argument('--lr_decay_epochs', default=None, type=ast.literal_eval)
+parser.add_argument('--lr_decay_rate', default=None, type=float)
 
 args = parser.parse_args()
 
@@ -63,7 +65,9 @@ config = Config(
     bce_with_logits=args.bce_with_logits,
     lambdas_pix_last=args.lambdas_pix_last,
     lambdas_pix_last_activated=args.lambdas_pix_last_activated,
-    run_name=args.run_name
+    run_name=args.run_name,
+    lr_decay_epochs=args.lr_decay_epochs,
+    lr_decay_rate=args.lr_decay_rate
 )
 if config.rand_seed:
     set_seed(config.rand_seed)
@@ -290,16 +294,18 @@ class Trainer:
                        "Training Loss": training_result,
                        "Learning Rate": self.lr_scheduler.get_last_lr()[0],
                        "Gradient Norm": self.last_grad_norm,
-                       "BCE loss validation": loss_components_dict['bce'],
-                       "SSIM loss validation": loss_components_dict['ssim'],
-                       "MAE loss validation": loss_components_dict['mae'],
-                       "IoU loss validation": loss_components_dict['iou'],
-                       "GDT loss validation": loss_components_dict['gdt'],
-                       "BCE loss training": self.loss_components_train['bce'],
-                       "SSIM loss training": self.loss_components_train['ssim'],
-                       "MAE loss training": self.loss_components_train['mae'],
-                       "IoU loss training": self.loss_components_train['iou'],
-                       "GDT loss training": self.loss_components_train['gdt'],
+                       "BCE loss validation": loss_components_dict['bce'] if 'bce' in loss_components_dict else 0,
+                       "SSIM loss validation": loss_components_dict['ssim'] if 'ssim' in loss_components_dict else 0,
+                       "MAE loss validation": loss_components_dict['mae'] if 'mae' in loss_components_dict else 0,
+                       "IoU loss validation": loss_components_dict['iou'] if 'iou' in loss_components_dict else 0,
+                       "GDT loss validation": loss_components_dict['gdt'] if 'gdt' in loss_components_dict else 0,
+                       "Contour loss validation": loss_components_dict['cnt'] if 'cnt' in loss_components_dict else 0,
+                       "BCE loss training": self.loss_components_train['bce'] if 'bce' in self.loss_components_train else 0,
+                       "SSIM loss training": self.loss_components_train['ssim'] if 'ssim' in self.loss_components_train else 0,
+                       "MAE loss training": self.loss_components_train['mae'] if 'mae' in self.loss_components_train else 0,
+                       "IoU loss training": self.loss_components_train['iou'] if 'iou' in self.loss_components_train else 0,
+                       "GDT loss training": self.loss_components_train['gdt'] if 'gdt' in self.loss_components_train else 0,
+                       "Contour loss training": self.loss_components_train['cnt'] if 'cnt' in self.loss_components_train else 0,
                        "Boundary IoU": validation_metrics_dict['BIoU'],
                        "Pixel Accuracy": validation_metrics_dict['PA'],
                        },step=step_idx)

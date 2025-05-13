@@ -31,6 +31,8 @@ def init_wandb(config,args):
         "pixel loss lambdas activated": config.lambdas_pix_last_activated,
         "bce_with_logits": config.bce_with_logits,
         "lr_warm_up_type": config.lr_warm_up_type,
+        "lr_decay_epochs": config.lr_decay_epochs,
+        "lr_decay_rate": config.lr_decay_rate
         })
         
         wandb.define_metric("Gradient norm")
@@ -48,7 +50,9 @@ def init_wandb(config,args):
         wandb.define_metric("MAE loss validation")
         wandb.define_metric("IoU loss validation")
         wandb.define_metric("GDT loss validation")
+        wandb.define_metric("Boundary IoU")
         wandb.define_metric("Pixel Accuracy")
+        wandb.define_metric("Contour loss")
 
 def get_lr_warm_up_scheduler(type, epochs, start_factor, end_factor, optimizer):
     if type == 'linear':
