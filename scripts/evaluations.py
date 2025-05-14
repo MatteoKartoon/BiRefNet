@@ -9,7 +9,7 @@ from typing import List
 
 import datetime as dt
 from datetime import datetime as dt
-
+import numpy as np
 config = Config()
 
 
@@ -107,13 +107,10 @@ def do_eval(args):
 
         #add the results to the dictionary
         model_name=title[0]
-        weighted_scores=[images_number*s for s in scores]
         if model_name in model_results_dict:
-            new_images_number=model_results_dict[model_name][0]+images_number
-            new_weighted_scores=[model_results_dict[model_name][1][i]+weighted_scores[i] for i in range(len(weighted_scores))]
-            model_results_dict[model_name]=(new_images_number,new_weighted_scores)
+            model_results_dict[model_name].append((images_number,scores))
         else:
-            model_results_dict[model_name] = (images_number,weighted_scores)
+            model_results_dict[model_name] = [(images_number,scores)]
 
         #create a list containing the title and the scores
         formatted_scores=[f".{f'{score:.3f}'.split('.')[-1]}" if score < 1 else f"{score:<4}" for score in scores]
@@ -128,9 +125,12 @@ def do_eval(args):
     tb.add_divider()
 
     #compute the average scores for each testset and add to the table
-    for model_name, (images_number, weighted_scores) in model_results_dict.items():
+    for model_name, model_results in model_results_dict.items():
         #compute the average scores and format them
-        average_scores=[s/images_number for s in weighted_scores]
+        images_number=sum([weight for weight, _ in model_results])
+        weighted_scores=[[weight * s for s in scores] for weight, scores in model_results]
+        aggregated_scores=np.sum(weighted_scores, axis=1)
+        average_scores=[s/images_number for s in aggregated_scores]
         average_scores=[f".{f'{score:.3f}'.split('.')[-1]}" if score < 1 else f"{score:<4}" for score in average_scores]
 
         #create a list containing the title and the average scores
