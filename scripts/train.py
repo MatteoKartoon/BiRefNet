@@ -394,10 +394,10 @@ class Trainer:
             if args.use_accelerate:
                 loss = loss / accelerator.gradient_accumulation_steps
                 accelerator.backward(loss)
+                accelerator.clip_grad_norm_(self.model.parameters(), config.gradient_clipping_norm)
             else:
                 loss.backward()
-            clip_norm_function= accelerator.clip_grad_norm_ if args.use_accelerate else torch.nn.utils.clip_grad_norm_
-            clip_norm_function(self.model.parameters(), config.gradient_clipping_norm)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), config.gradient_clipping_norm)
             self.optimizer.step()
 
             # Print gradient norm to monitor training

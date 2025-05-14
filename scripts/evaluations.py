@@ -5,12 +5,35 @@ import prettytable as pt
 
 from birefnet.evaluation.metrics import evaluator
 from birefnet.config import Config
-from typing import List
+from typing import List, Tuple
 
 import datetime as dt
 from datetime import datetime as dt
 import numpy as np
 config = Config()
+
+
+def compute_model_average_score(model_results: List[Tuple[float, List[float]]]) -> Tuple[int, List[str]]:
+    """
+    Computes the average scores for a model
+    Args:
+        model_results: List of tuples containing the weight (number of images) and scores for each folder
+    Returns:
+        List of strings containing the average scores for a model and int of the total number of images
+    """
+    # compute the total number of images
+    images_number=sum([weight for weight, _ in model_results])
+
+    # multiply each score by the weight of the folder, and store the result in a matrix
+    weighted_scores=[[weight * s for s in scores] for weight, scores in model_results]
+
+    # sum the scores for each metric (same column)
+    aggregated_scores=np.sum(weighted_scores, axis=0)
+
+    # compute the average scores and format them
+    average_scores=[s/images_number for s in aggregated_scores]
+    average_scores=[f".{f'{score:.3f}'.split('.')[-1]}" if score < 1 else f"{score:<4}" for score in average_scores]
+    return images_number, average_scores
 
 
 def get_scores(list_gt: List[str], list_pred: List[str]):
@@ -127,11 +150,7 @@ def do_eval(args):
     #compute the average scores for each testset and add to the table
     for model_name, model_results in model_results_dict.items():
         #compute the average scores and format them
-        images_number=sum([weight for weight, _ in model_results])
-        weighted_scores=[[weight * s for s in scores] for weight, scores in model_results]
-        aggregated_scores=np.sum(weighted_scores, axis=0)
-        average_scores=[s/images_number for s in aggregated_scores]
-        average_scores=[f".{f'{score:.3f}'.split('.')[-1]}" if score < 1 else f"{score:<4}" for score in average_scores]
+        images_number, average_scores=compute_model_average_score(model_results)
 
         #create a list containing the title and the average scores
         title=[model_name, "Model average", images_number]
