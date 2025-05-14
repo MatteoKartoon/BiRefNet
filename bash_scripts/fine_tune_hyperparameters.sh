@@ -1,10 +1,13 @@
-run_name="experiment1"
+run_name="loss_rescaling_first_epoch_lr_decay"
 learning_rate=1e-5
 bce_with_logits=False
 
-lambdas_pix_last='{"bce": 1, "iou": 6, "iou_patch": 0.5, "mae": 25, "mse": 30, "triplet": 3, "reg": 100, "ssim": 20, "cnt": 5, "structure": 5}'
+lambdas_pix_last='{"bce": 0, "iou": 0.25, "iou_patch": 0.5, "mae": 90, "mse": 30, "triplet": 3, "reg": 100, "ssim": 10, "cnt": 5, "structure": 5}'
 
-lambdas_pix_last_activated='{"bce": True, "iou": True, "iou_patch": False, "mae": True, "mse": False, "triplet": False, "reg": False, "ssim": True, "cnt": False, "structure": False}'
+lambdas_pix_last_activated=None
+
+lr_decay_epochs='[20,40]'
+lr_decay_rate=0.5
 
 #!/bin/bash
 # Run script
@@ -15,8 +18,8 @@ ckpt_dir="fine_tuning"
 train_set="train_generations_20250326_pose+train_generations_20250318_emotion+train_generations_20250411_ref_images"
 validation_set="validation_generations_20250326_pose+validation_generations_20250318_emotion+validation_generations_20250411_ref_images"
 epochs=294
-save_last_epochs=10
-save_each_epochs=2
+save_last_epochs=40
+save_each_epochs=10
 task="fine_tuning"
 
 # Train
@@ -40,7 +43,9 @@ accelerate launch --multi_gpu --num_processes $((nproc_per_node+1)) \
     --bce_with_logits $bce_with_logits \
     --lambdas_pix_last "$lambdas_pix_last" \
     --lambdas_pix_last_activated "$lambdas_pix_last_activated"  \
-    --run_name $run_name
+    --run_name $run_name \
+    --lr_decay_epochs "$lr_decay_epochs" \
+    --lr_decay_rate $lr_decay_rate
 
 echo Training finished at $(date)
 
@@ -48,14 +53,16 @@ echo Training finished at $(date)
 wait
 
 
-
-run_name="experiment2"
+run_name="loss_weights_lr_decay"
 learning_rate=1e-5
 bce_with_logits=False
 
 lambdas_pix_last='{"bce": 1, "iou": 6, "iou_patch": 0.5, "mae": 25, "mse": 30, "triplet": 3, "reg": 100, "ssim": 20, "cnt": 5, "structure": 5}'
 
-lambdas_pix_last_activated='{"bce": True, "iou": True, "iou_patch": False, "mae": True, "mse": False, "triplet": False, "reg": False, "ssim": True, "cnt": False, "structure": False}'
+lambdas_pix_last_activated=None
+
+lr_decay_epochs='[20,40]'
+lr_decay_rate=0.5
 
 #!/bin/bash
 # Run script
@@ -66,8 +73,8 @@ ckpt_dir="fine_tuning"
 train_set="train_generations_20250326_pose+train_generations_20250318_emotion+train_generations_20250411_ref_images"
 validation_set="validation_generations_20250326_pose+validation_generations_20250318_emotion+validation_generations_20250411_ref_images"
 epochs=294
-save_last_epochs=10
-save_each_epochs=2
+save_last_epochs=40
+save_each_epochs=10
 task="fine_tuning"
 
 # Train
@@ -91,6 +98,8 @@ accelerate launch --multi_gpu --num_processes $((nproc_per_node+1)) \
     --bce_with_logits $bce_with_logits \
     --lambdas_pix_last "$lambdas_pix_last" \
     --lambdas_pix_last_activated "$lambdas_pix_last_activated"  \
-    --run_name $run_name
+    --run_name $run_name \
+    --lr_decay_epochs "$lr_decay_epochs" \
+    --lr_decay_rate $lr_decay_rate
 
 echo Training finished at $(date)

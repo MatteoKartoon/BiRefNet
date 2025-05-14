@@ -5,12 +5,35 @@ import prettytable as pt
 
 from birefnet.evaluation.metrics import evaluator
 from birefnet.config import Config
-from typing import List
+from typing import List, Tuple
 
 import datetime as dt
 from datetime import datetime as dt
-
+import numpy as np
 config = Config()
+
+
+def compute_model_average_score(model_results: List[Tuple[float, List[float]]]) -> Tuple[int, List[str]]:
+    """
+    Computes the average scores for a model
+    Args:
+        model_results: List of tuples containing the weight (number of images) and scores for each folder
+    Returns:
+        List of strings containing the average scores for a model and int of the total number of images
+    """
+    # compute the total number of images
+    images_number=sum([weight for weight, _ in model_results])
+
+    # multiply each score by the weight of the folder, and store the result in a matrix
+    weighted_scores=[[weight * s for s in scores] for weight, scores in model_results]
+
+    # sum the scores for each metric (same column)
+    aggregated_scores=np.sum(weighted_scores, axis=0)
+
+    # compute the average scores and format them
+    average_scores=[s/images_number for s in aggregated_scores]
+    average_scores=[f".{f'{score:.3f}'.split('.')[-1]}" if score < 1 else f"{score:<4}" for score in average_scores]
+    return images_number, average_scores
 
 
 def get_scores(list_gt: List[str], list_pred: List[str]):
@@ -31,10 +54,6 @@ def get_scores(list_gt: List[str], list_pred: List[str]):
     scores = {'S': sm, 'MAE': mae, 'E': em, 'F': fm, 'WF': wfm, 'MBA': mba, 'BIoU': biou, 'MSE': mse, 'HCE': hce, 'PA': pa}
 
     scores = {metric:value['curve'].mean().round(3) if metric in ['E','F','BIoU'] else int(hce.round()) if metric == 'HCE' else value.round(3) for metric, value in scores.items()}
-
-    #format the scores
-    for metric, score in scores.items():
-        scores[metric] = f".{f'{score:.3f}'.split('.')[-1]}" if score < 1 else f"{score:<4}"
 
     #create a list containing the active scores
     return [scores[metric] for metric in config.display_eval_metrics]
@@ -76,6 +95,9 @@ def do_eval(args):
     tb.vertical_char = '&'
     tb.field_names = get_field_names()
 
+    #variables to store the results for each testset
+    model_results_dict={}
+
     #loop over the prediction folders
     for prediction in args.predictions:
         #get the ground-truth and prediction precise paths
@@ -94,25 +116,48 @@ def do_eval(args):
         #get the list of files in the ground-truth and prediction folders
         list_gt = sorted([os.path.join(gt_pth, f) for f in os.listdir(gt_pth)])
         list_pred = sorted([os.path.join(pred_pth, f) for f in os.listdir(pred_pth)])
-        image_number = len(list_gt)
+        images_number = len(list_gt)
 
         #check if the ground-truth and prediction folders have the same elements
         assert len(list_gt) == len(list_pred), "The folder {} is not matching to the corresponding ground-truth folder".format(prediction)
 
         #get the title of the row to be added to the table (model name, test set, test image number)
         title = prediction.split('/')
-        title.append(image_number)
+        title.append(images_number)
 
         #get the scores
         scores = get_scores(list_gt, list_pred)
 
+        #add the results to the dictionary
+        model_name=title[0]
+        if model_name in model_results_dict:
+            model_results_dict[model_name].append((images_number,scores))
+        else:
+            model_results_dict[model_name] = [(images_number,scores)]
+
         #create a list containing the title and the scores
-        record=title+scores
+        formatted_scores=[f".{f'{score:.3f}'.split('.')[-1]}" if score < 1 else f"{score:<4}" for score in scores]
+        record=title+formatted_scores
 
         #add the row to the table
         tb.add_row(record)
 
         #write the results to the file
+        with open(filename, 'w+') as file_to_write:
+            file_to_write.write(str(tb)+'\n')
+    tb.add_divider()
+
+    #compute the average scores for each testset and add to the table
+    for model_name, model_results in model_results_dict.items():
+        #compute the average scores and format them
+        images_number, average_scores=compute_model_average_score(model_results)
+
+        #create a list containing the title and the average scores
+        title=[model_name, "Model average", images_number]
+        record=title+average_scores
+
+        #add the row to the table
+        tb.add_row(record)
         with open(filename, 'w+') as file_to_write:
             file_to_write.write(str(tb)+'\n')
 
