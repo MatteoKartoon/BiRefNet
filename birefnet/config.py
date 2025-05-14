@@ -33,6 +33,8 @@ DEFAULT_LAMBDAS_PIX_LAST_ACTIVATED = {
 DEFAULT_LR_DECAY_EPOCHS = []
 DEFAULT_LR_DECAY_RATE = 0.4
 DEFAULT_FINE_TUNE_LAST = 0
+GRADIENT_CLIPPING_NORM_DEFAULT = 100.0
+
 
 class Config():
     def __init__(self, learning_rate=None, bce_with_logits=None, lambdas_pix_last=None, lambdas_pix_last_activated=None, run_name=None, lr_decay_epochs=None, lr_decay_rate=None, fine_tune_last=None) -> None:
@@ -68,6 +70,7 @@ class Config():
         self.precisionHigh = True
 
         # MODEL settings
+        self.gradient_clipping_norm = GRADIENT_CLIPPING_NORM_DEFAULT
         self.ms_supervision = True
         self.out_ref = self.ms_supervision and True
         self.dec_ipt = True
@@ -82,7 +85,6 @@ class Config():
         self.log_each_steps = 15
         self.lr_warm_up_type = None
         self.display_eval_metrics = ['PA', 'BIoU', 'WF']
-        self.gradient_clipping_norm = 100.0
         
         self.size = (1024, 1024) # wid, hei
         self.dynamic_size = (0, 0)   # wid, hei. It might cause errors in using compile.

@@ -230,7 +230,7 @@ def save_folder(model_paths: list[str], testset: str, gt_paths: list[str], image
         # save the predictions over green background
         for pred_path, image_path in visualize_pictures:
             image_name=image_path.split("/")[-1]
-            pred_green_bg=pt_green_bg(image_path, pred_path)
+            pred_green_bg=pt_green_bg(pred_path,image_path)
             pred_green_bg.save(os.path.join(save_folder, f"{image_name}.png"))
 
 
@@ -252,7 +252,7 @@ def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], 
     
     #get the number of model predictions and number of images to be visualized 
     gt_len = len(gt_paths)
-    picture_max_len = 10
+    picture_max_len = 1
     picture_wids=len(model_paths)+2
     
     #Create a dictionary with the same shape as prediction_content dictionary, to save scores for each model and image
@@ -280,7 +280,7 @@ def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], 
         #select the pictures to be visualized
         visualize_pictures = [(np.transpose([pred_content[model_path][i] for model_path in model_paths]), gt_paths[i], image_paths[i]) for i in visualize_inds]
 
-        #initialize the figureù
+        #initialize the figure
         picture_len = min(picture_max_len,gt_len)
         plt.figure(figsize=(5*picture_wids, 6*picture_len))
         #Loop through all the interesting images, the models and the metrics

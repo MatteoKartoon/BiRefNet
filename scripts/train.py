@@ -296,18 +296,18 @@ class Trainer:
                        "Training Loss": training_result,
                        "Learning Rate": self.lr_scheduler.get_last_lr()[0],
                        "Gradient Norm": self.last_grad_norm,
-                       "BCE loss validation": loss_components_dict['bce'] if 'bce' in loss_components_dict else 0,
-                       "SSIM loss validation": loss_components_dict['ssim'] if 'ssim' in loss_components_dict else 0,
-                       "MAE loss validation": loss_components_dict['mae'] if 'mae' in loss_components_dict else 0,
-                       "IoU loss validation": loss_components_dict['iou'] if 'iou' in loss_components_dict else 0,
-                       "GDT loss validation": loss_components_dict['gdt'] if 'gdt' in loss_components_dict else 0,
-                       "Contour loss validation": loss_components_dict['cnt'] if 'cnt' in loss_components_dict else 0,
-                       "BCE loss training": self.loss_components_train['bce'] if 'bce' in self.loss_components_train else 0,
-                       "SSIM loss training": self.loss_components_train['ssim'] if 'ssim' in self.loss_components_train else 0,
-                       "MAE loss training": self.loss_components_train['mae'] if 'mae' in self.loss_components_train else 0,
-                       "IoU loss training": self.loss_components_train['iou'] if 'iou' in self.loss_components_train else 0,
-                       "GDT loss training": self.loss_components_train['gdt'] if 'gdt' in self.loss_components_train else 0,
-                       "Contour loss training": self.loss_components_train['cnt'] if 'cnt' in self.loss_components_train else 0,
+                       "BCE loss validation": loss_components_dict['bce'] if 'bce' in loss_components_dict else None,
+                       "SSIM loss validation": loss_components_dict['ssim'] if 'ssim' in loss_components_dict else None,
+                       "MAE loss validation": loss_components_dict['mae'] if 'mae' in loss_components_dict else None,
+                       "IoU loss validation": loss_components_dict['iou'] if 'iou' in loss_components_dict else None,
+                       "GDT loss validation": loss_components_dict['gdt'] if 'gdt' in loss_components_dict else None,
+                       "Contour loss validation": loss_components_dict['cnt'] if 'cnt' in loss_components_dict else None,
+                       "BCE loss training": self.loss_components_train['bce'] if 'bce' in self.loss_components_train else None,
+                       "SSIM loss training": self.loss_components_train['ssim'] if 'ssim' in self.loss_components_train else None,
+                       "MAE loss training": self.loss_components_train['mae'] if 'mae' in self.loss_components_train else None,
+                       "IoU loss training": self.loss_components_train['iou'] if 'iou' in self.loss_components_train else None,
+                       "GDT loss training": self.loss_components_train['gdt'] if 'gdt' in self.loss_components_train else None,
+                       "Contour loss training": self.loss_components_train['cnt'] if 'cnt' in self.loss_components_train else None,
                        "Boundary IoU": validation_metrics_dict['BIoU'],
                        "Pixel Accuracy": validation_metrics_dict['PA'],
                        },step=step_idx)
@@ -394,10 +394,10 @@ class Trainer:
             if args.use_accelerate:
                 loss = loss / accelerator.gradient_accumulation_steps
                 accelerator.backward(loss)
-                accelerator.clip_grad_norm_(self.model.parameters(), config.gradient_clipping_norm)
             else:
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(self.model.parameters(), config.gradient_clipping_norm)
+            clip_norm_function= accelerator.clip_grad_norm_ if args.use_accelerate else torch.nn.utils.clip_grad_norm_
+            clip_norm_function(self.model.parameters(), config.gradient_clipping_norm)
             self.optimizer.step()
 
             # Print gradient norm to monitor training
@@ -473,7 +473,7 @@ def main():
         train_loss, val_loss = trainer.train_epoch(epoch)
         # Save checkpoint
         # DDP
-        if epoch >= args.epochs - args.save_last_epochs and epoch % args.save_each_epochs == 0:
+        if epoch >= trainer.save_last_epochs_start and (args.epochs-epoch) % args.save_each_epochs == 0:
             if save_to_cpu:
                 state_dict = {k: v.cpu() for k, v in trainer.model.state_dict().items()}
             # default behavior
