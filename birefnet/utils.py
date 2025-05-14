@@ -26,7 +26,7 @@ def init_wandb(config,args):
         "validation_set": args.validation_set,
         "save_last_epochs": args.save_last_epochs,
         "save_each_epochs": args.save_each_epochs,
-        "finetune_last_epochs": config.finetune_last_epochs,
+        "finetune_last_epochs": config.fine_tune_last,
         "pixel loss lambdas": config.lambdas_pix_last,
         "pixel loss lambdas activated": config.lambdas_pix_last_activated,
         "bce_with_logits": config.bce_with_logits,

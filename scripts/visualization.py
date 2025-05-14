@@ -185,7 +185,6 @@ def do_visualization(model_paths: list[str], gt_paths: list[str], image_paths: l
             plt.title('Ground truth')
             
             plt.subplot(picture_len, 6, 6*i+5)
-            #plt.imshow(pt_red_pixels(cv2.imread(gt_path, cv2.IMREAD_GRAYSCALE), cv2.imread(pred_path, cv2.IMREAD_GRAYSCALE)))
             plt.imshow(Image.open(pred_path))
             plt.axis('off')
             plt.title('Model prediction mask')
@@ -208,7 +207,32 @@ def do_visualization(model_paths: list[str], gt_paths: list[str], image_paths: l
         print(f"Saving visualization to: {output_file}")
         plt.savefig(output_file, bbox_inches='tight', dpi=300)        
         plt.close()
+
+
+def save_folder(model_paths: list[str], testset: str, gt_paths: list[str], image_paths: list[str]):
+    """Take a list of model paths, ground truth paths and original image paths and save in a folder the predictions over green background"""
     
+    #Loop through all the models
+    for model_path in model_paths:
+        print("Saving model results: ", model_path)
+
+        # Load the model predictions
+        pred_data_dir=os.path.join("../e_preds", model_path, args.testset)
+        assert os.path.exists(pred_data_dir), "Model prediction path does not exist"
+        pred_content = sorted([os.path.join(pred_data_dir, f) for f in os.listdir(pred_data_dir)])
+        assert len(pred_content) == len(gt_paths), "Number of model predictions and ground truth paths do not match"
+        
+        #select the pictures to be visualized
+        visualize_pictures = [(pred_content[i], image_paths[i]) for i in range(len(gt_paths))]
+        save_folder=f"../e_results/pred_green_bg_{model_path}_{testset}"
+        os.makedirs(save_folder, exist_ok=True)
+
+        # save the predictions over green background
+        for pred_path, image_path in visualize_pictures:
+            image_name=image_path.split("/")[-1]
+            pred_green_bg=pt_green_bg(image_path, pred_path)
+            pred_green_bg.save(os.path.join(save_folder, f"{image_name}.png"))
+
 
 def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], image_paths: list[str]):
     """Take a list of model paths, metrics, ground truth paths and original image paths and,
@@ -340,3 +364,4 @@ if __name__ == '__main__':
     # Call the appropriate function based on the comparison flag
     do_ranking(models, metrics, gt_paths, image_paths)
     do_visualization(models, gt_paths, image_paths)
+    save_folder(models, args.testset, gt_paths, image_paths)

@@ -1,5 +1,5 @@
 devices="0,1"
-ckpt_path="20250512__1602/epoch_294.pth"
+ckpt_path="20250513__1532/epoch_290.pth"
 testsets="test_generations_20250318_emotion"
 
 cd ../scripts

@@ -44,6 +44,7 @@ parser.add_argument('--lambdas_pix_last_activated', default=None, type=ast.liter
 parser.add_argument('--run_name', default=None, type=str)
 parser.add_argument('--lr_decay_epochs', default=None, type=ast.literal_eval)
 parser.add_argument('--lr_decay_rate', default=None, type=float)
+parser.add_argument('--fine_tune_last', default=None, type=int)
 
 args = parser.parse_args()
 
@@ -67,7 +68,8 @@ config = Config(
     lambdas_pix_last_activated=args.lambdas_pix_last_activated,
     run_name=args.run_name,
     lr_decay_epochs=args.lr_decay_epochs,
-    lr_decay_rate=args.lr_decay_rate
+    lr_decay_rate=args.lr_decay_rate,
+    fine_tune_last=args.fine_tune_last
 )
 if config.rand_seed:
     set_seed(config.rand_seed)
@@ -249,9 +251,9 @@ class Trainer:
         self.val_loss_log = AverageMeter()
         
         assert args.save_last_epochs >= 0, "save_last_epochs must be greater than 0"
-        assert config.finetune_last_epochs <= 0, "finetune_last_epochs must be less than 0"
+        assert config.fine_tune_last <= 0, "fine_tune_last must be less than 0"
         self.save_last_epochs_start = args.epochs - args.save_last_epochs
-        self.finetune_last_epochs_start = args.epochs + config.finetune_last_epochs
+        self.finetune_last_epochs_start = args.epochs + config.fine_tune_last +1
 
         self.last_grad_norm = 0
 
@@ -392,8 +394,10 @@ class Trainer:
             if args.use_accelerate:
                 loss = loss / accelerator.gradient_accumulation_steps
                 accelerator.backward(loss)
+                accelerator.clip_grad_norm_(self.model.parameters(), config.gradient_clipping_norm)
             else:
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), config.gradient_clipping_norm)
             self.optimizer.step()
 
             # Print gradient norm to monitor training
