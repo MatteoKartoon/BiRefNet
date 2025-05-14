@@ -129,7 +129,7 @@ def do_eval(args):
         #compute the average scores and format them
         images_number=sum([weight for weight, _ in model_results])
         weighted_scores=[[weight * s for s in scores] for weight, scores in model_results]
-        aggregated_scores=np.sum(weighted_scores, axis=1)
+        aggregated_scores=np.sum(weighted_scores, axis=0)
         average_scores=[s/images_number for s in aggregated_scores]
         average_scores=[f".{f'{score:.3f}'.split('.')[-1]}" if score < 1 else f"{score:<4}" for score in average_scores]
 
