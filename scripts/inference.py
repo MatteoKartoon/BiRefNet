@@ -15,20 +15,26 @@ from birefnet.config import Config
 config = Config()
 
 
-def inference(model, data_loader_test, pred_root, testset, weight_path, device=0):
+def inference(model, data_loader_test, pred_root, testset, ckpt_folder, device=0):
+    """
+    EXAMPLE:
+    pred_root = "/home/matteo/ai-research/rembg_finetuning/codes/dis/BiRefNet/e_preds"
+    ckpt_folder = "/home/matteo/ai-research/rembg_finetuning/codes/dis/BiRefNet/ckpt/fine_tuning/20250514__2048"
+    testset = "validation_generations_20250411_ref_images"
+    """
     model_training = model.training
     if model_training:
         model.eval()
     model.half()
 
     #Check that the format is the right one in the path name
-    validate_format(weight_path)
+    validate_format(ckpt_folder)
 
     #get epoch from ckpt path name
-    epoch = weight_path.split('_')[-1].split('.')[0]
+    epoch = ckpt_folder.split('_')[-1].split('.')[0]
 
     #get the tr
-    training_date=weight_path.split('/')[-2]
+    training_date=ckpt_folder.split('/')[-2]
 
     #create the directory to save the predictions
     saving_dir=f"{pred_root}/{training_date}__epoch{epoch}/{testset}"
