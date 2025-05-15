@@ -1,6 +1,6 @@
 # Assign input arguments to variables
-input_folderpath="/home/matteo/ai-research/rembg_finetuning/codes/dis/BiRefNet/e_preds/briaai_original/test_generations_20250411_ref_images"
-output_folderpath="/home/matteo/ai-research/rembg_finetuning/codes/dis/BiRefNet/e_preds/briaai/test_generations_20250411_ref_images"
+input_folderpath="/home/matteo/ai-research/rembg_finetuning/datasets/dis/fine_tuning/annotated_generations_20250422_factory_images_edited"
+output_folderpath="/home/matteo/ai-research/rembg_finetuning/datasets/dis/fine_tuning/annotated_generations_20250422_factory_images"
 high_threshold=220
 low_threshold=0
 

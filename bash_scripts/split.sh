@@ -1,7 +1,7 @@
 # Assign the arguments to variables
-input_dir="/home/matteo/ai-research/rembg_finetuning/datasets/dis/fine_tuning/generations_2025mmdd_workflow"
+input_dir="/home/matteo/ai-research/rembg_finetuning/datasets/dis/fine_tuning/filtred"
 output_dir="/home/matteo/ai-research/rembg_finetuning/datasets/dis/fine_tuning"
-gt_dir="/home/matteo/ai-research/rembg_finetuning/datasets/dis/fine_tuning/filtred_2025mmdd"
+gt_dir="/home/matteo/ai-research/rembg_finetuning/datasets/dis/fine_tuning/annotated_generations_20250422_factory_images"
 dataset_name="generations_2025mmdd_workflow"
 
 # Call the Python script with the provided arguments

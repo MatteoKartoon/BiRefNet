@@ -1,6 +1,6 @@
 devices="0,1"
 ckpt_date="20250514__2048"
-testsets="test_generations_20250318_emotion+test_generations_20250326_pose+test_generations_20250411_ref_images"
+testsets="validation_generations_20250318_emotion+validation_generations_20250326_pose+validation_generations_20250411_ref_images"
 
 cd ../scripts
 # Inference
