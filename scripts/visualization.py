@@ -234,7 +234,7 @@ def save_folder(model_paths: list[str], testset: str, gt_paths: list[str], image
             pred_green_bg.save(os.path.join(save_folder, f"{image_name}.png"))
 
 
-def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], image_paths: list[str]):
+def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], image_paths: list[str], display_mask: bool):
     """Take a list of model paths, metrics, ground truth paths and original image paths and,
     print a picture for each specified metric, containing a comparison between the specified models"""
     
@@ -313,15 +313,17 @@ def do_ranking(model_paths: list[str], metrics: list[str], gt_paths: list[str], 
             for i in range(len(p)):
                 plt.subplot(picture_len, picture_wids, picture_wids*image_row+3+i)
 
-                # Read as cv2
-                gt_img = cv2.imread(g, cv2.IMREAD_GRAYSCALE)
-                pred_img = cv2.imread(p[i], cv2.IMREAD_GRAYSCALE)
-
                 #if metric is PA show the red pixels eroded
-                if metric!='PA':
-                    plt.imshow(Image.fromarray(pt_red_pixels(gt_img, pred_img)))
+                if display_mask:
+                    # Read as cv2
+                    gt_img = cv2.imread(g, cv2.IMREAD_GRAYSCALE)
+                    pred_img = cv2.imread(p[i], cv2.IMREAD_GRAYSCALE)
+                    if metric!='PA':
+                        plt.imshow(Image.fromarray(pt_red_pixels(gt_img, pred_img)))
+                    else:
+                        plt.imshow(Image.fromarray(erode_red(pt_red_pixels(gt_img, pred_img))))
                 else:
-                    plt.imshow(Image.fromarray(erode_red(pt_red_pixels(gt_img, pred_img))))
+                    plt.imshow(pt_green_bg(m,p[i]))
 
                 plt.axis('off')
                 tit=p[i].split("/")[2]
@@ -345,6 +347,7 @@ if __name__ == '__main__':
     parser.add_argument('--metrics', type=str, help='Metrics to be used',
                         default='+'.join(['S', 'MAE', 'E', 'F', 'WF', 'MBA', 'BIoU', 'MSE', 'HCE','PA']))
     parser.add_argument('--testset', type=str, help='Testset to be used', required=True)
+    parser.add_argument('--display_mask', type=eval, help='Display mask', default=False)
 
     # Parse the arguments
     args = parser.parse_args()
@@ -362,6 +365,6 @@ if __name__ == '__main__':
     assert len(gt_paths) == len(image_paths), f"Number of ground-truth and original image paths {len(gt_paths)} and {len(image_paths)} do not match"
 
     # Call the appropriate function based on the comparison flag
-    do_ranking(models, metrics, gt_paths, image_paths)
+    do_ranking(models, metrics, gt_paths, image_paths, display_mask=args.display_mask)
     do_visualization(models, gt_paths, image_paths)
     save_folder(models, args.testset, gt_paths, image_paths)
