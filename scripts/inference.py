@@ -15,24 +15,33 @@ from birefnet.config import Config
 config = Config()
 
 
-def inference(model, data_loader_test, pred_root, testset, device=0):
+def inference(model, data_loader_test, pred_root, testset, ckpt_folder, device=0):
+    """
+    EXAMPLE:
+    pred_root = "/home/matteo/ai-research/rembg_finetuning/codes/dis/BiRefNet/e_preds"
+    ckpt_folder = "/home/matteo/ai-research/rembg_finetuning/codes/dis/BiRefNet/ckpt/fine_tuning/20250514__2048"
+    testset = "validation_generations_20250411_ref_images"
+    """
     model_training = model.training
     if model_training:
         model.eval()
     model.half()
+
     #Check that the format is the right one in the path name
-    validate_format(args.ckpt_path)
+    validate_format(ckpt_folder)
+
     #get epoch from ckpt path name
-    epoch = args.ckpt_path.split('_')[-1].split('.')[0]
+    epoch = ckpt_folder.split('_')[-1].split('.')[0]
+
     #get the tr
-    training_date=args.ckpt_path.split('/')[0]
+    training_date=ckpt_folder.split('/')[-2]
+
     #create the directory to save the predictions
     saving_dir=f"{pred_root}/{training_date}__epoch{epoch}/{testset}"
     print(f"Saving prediction in {saving_dir}...")
 
     for batch in tqdm(data_loader_test, total=len(data_loader_test)) if 1 or config.verbose_eval else data_loader_test:
         inputs = batch[0].to(device).half()
-        # gts = batch[1].to(device)
         label_paths = batch[-1]
         with torch.no_grad():
             scaled_preds = model(inputs)[-1].sigmoid()
@@ -47,10 +56,12 @@ def inference(model, data_loader_test, pred_root, testset, device=0):
                 mode='bilinear',
                 align_corners=True
             )
+
             #prediction image path
             computed_prediction_name=label_paths[idx_sample].replace('\\', '/').split('/')[-1]
             complete_saving_path=os.path.join(saving_dir, computed_prediction_name) # test set dir + file name
             save_tensor_img(res, complete_saving_path)
+
     if model_training:
         model.train()
     return None
@@ -58,37 +69,42 @@ def inference(model, data_loader_test, pred_root, testset, device=0):
 
 def validate_format(value):
     """
-    Validates if a string matches the format dddddddd__dddd/epoch_ddd.pth where d is a digit
+    Validates if the last part of the string matches the format dddddddd__dddd/epoch_ddd.pth where d is a digit
     Returns True if the format is valid, False otherwise
     """
+    # get the last two parts of the path
+    date_epoch = f"{value.split('/')[-2]}/{value.split('/')[-1]}"
+
+    # check if the pattern is the correct one
     pattern = r'^\d{8}__\d{4}/epoch_\d{3}\.pth$'
-    assert bool(re.match(pattern, value)), "Checkpoint path must be in the format dddddddd__dddd/epoch_ddd.pth where d is a digit"
+    assert bool(re.match(pattern, date_epoch)), "Checkpoint path must be in the format dddddddd__dddd/epoch_ddd.pth where d is a digit"
 
 
 def main(args):
     # Init model
-    weights = os.path.join(args.ckpt_folder, args.ckpt_path)
+    weights_folder = os.path.join(args.ckpt_folder, args.ckpt_date)
     device = config.device
     model = BiRefNet(bb_pretrained=False)
         
     #start testing
     for testset in args.testsets.split('+'):
-        testset_pth=os.path.join(config.data_root_dir,"fine_tuning",testset)
-        print('>>>> Testset: {}'.format(testset_pth))
-        data_loader_test = torch.utils.data.DataLoader(
-            dataset=MyData(testset_pth, image_size=config.size, is_train=False),
-            batch_size=config.batch_size_test, shuffle=False, num_workers=config.num_workers, pin_memory=True
-        )
-        
-        print('\tInferencing {}...'.format(weights))
-        state_dict = torch.load(weights, map_location='cpu', weights_only=True)
-        state_dict = check_state_dict(state_dict)
-        model.load_state_dict(state_dict)
-        model = model.to(device)
-        inference(
-            model, data_loader_test=data_loader_test, pred_root=args.pred_root,
-            testset=testset, device=config.device
-        )
+        for weight_path in glob(os.path.join(weights_folder, "*.pth")):
+            testset_pth=os.path.join(config.data_root_dir,"fine_tuning",testset)
+            print('>>>> Testset: {}'.format(testset_pth))
+            data_loader_test = torch.utils.data.DataLoader(
+                dataset=MyData(testset_pth, image_size=config.size, is_train=False),
+                batch_size=config.batch_size_test, shuffle=False, num_workers=config.num_workers, pin_memory=True
+            )
+            
+            print('\tInferencing {}...'.format(weight_path))
+            state_dict = torch.load(weight_path, map_location='cpu', weights_only=True)
+            state_dict = check_state_dict(state_dict)
+            model.load_state_dict(state_dict)
+            model = model.to(device)
+            inference(
+                model, data_loader_test=data_loader_test, pred_root=args.pred_root,
+                testset=testset, weight_path=weight_path, device=config.device
+            )
 
 
 if __name__ == '__main__':
@@ -96,7 +112,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='')
     
     parser.add_argument('--ckpt_folder', default="../ckpt/fine_tuning", type=str, help='model folder')
-    parser.add_argument('--ckpt_path', type=str, help='which checkpoint to use')
+    parser.add_argument('--ckpt_date', type=str, help='which checkpoint to use')
     parser.add_argument('--pred_root', default='../e_preds', type=str, help='Output folder')
     parser.add_argument('--testsets',type=str,help="which test set do inference on")
 

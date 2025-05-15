@@ -1,7 +1,7 @@
 import argparse
 import os
 import random
-from config import Config
+from birefnet.config import Config
 from typing import List
 from datetime import datetime
 import shutil
