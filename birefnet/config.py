@@ -5,12 +5,12 @@ from datetime import datetime as dt
 #Set the default values for the parameters
 DEFAULT_LR = 1e-5
 DEFAULT_RUN_NAME = dt.now().strftime("%Y%m%d_%H%M%S")
-DEFAULT_BCE_WITH_LOGITS = False
+DEFAULT_BCE_WITH_LOGITS = True
 DEFAULT_LAMBDAS_PIX_LAST = {
     'bce': 30,
-    'iou': 0.5,
+    'iou': 0.25,
     'iou_patch': 0.5,
-    'mae': 100,
+    'mae': 90,
     'mse': 30,
     'triplet': 3,
     'reg': 100,
@@ -19,7 +19,7 @@ DEFAULT_LAMBDAS_PIX_LAST = {
     'structure': 5,
 }
 DEFAULT_LAMBDAS_PIX_LAST_ACTIVATED = {
-    'bce': True,
+    'bce': False,
     'iou': True,
     'iou_patch': False,
     'mae': True,
@@ -30,8 +30,8 @@ DEFAULT_LAMBDAS_PIX_LAST_ACTIVATED = {
     'cnt': False,
     'structure': False,
 }
-DEFAULT_LR_DECAY_EPOCHS = []
-DEFAULT_LR_DECAY_RATE = 0.4
+DEFAULT_LR_DECAY_EPOCHS = [20,40,60,80]
+DEFAULT_LR_DECAY_RATE = 0.5
 DEFAULT_FINE_TUNE_LAST = 0
 GRADIENT_CLIPPING_NORM_DEFAULT = 100.0
 
