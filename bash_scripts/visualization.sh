@@ -1,7 +1,8 @@
 # Store parameters in variables
-models_path="photoroom+briaai+20250513__1532__epoch290"
+models_path="briaai+20250507__1229__epoch294+20250514__2048__epoch314"
 testset="test_generations_20250411_ref_images"
-metrics="PA+BIoU"
+metrics="PA"
+display_mask=0
 
 # Run visualization.py with the parameters
-python ../scripts/visualization.py --models ${models_path} --metrics ${metrics} --testset ${testset}
+python ../scripts/visualization.py --models ${models_path} --metrics ${metrics} --testset ${testset} --display_mask ${display_mask}

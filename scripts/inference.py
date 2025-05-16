@@ -103,7 +103,7 @@ def main(args):
             model = model.to(device)
             inference(
                 model, data_loader_test=data_loader_test, pred_root=args.pred_root,
-                testset=testset, weight_path=weight_path, device=config.device
+                testset=testset, ckpt_folder=weight_path, device=config.device
             )
 
 
