@@ -1,0 +1,46 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "ToonOut: Fine-tuned Background Removal for Anime Characters"
+version: "1.0.0"
+date-released: 2025-01-09
+url: "https://github.com/MatteoKartoon/BiRefNet"
+repository-code: "https://github.com/MatteoKartoon/BiRefNet"
+authors:
+  - family-names: "Muratori"
+    given-names: "Matteo"
+    affiliation: "University of Bologna, Kartoon AI"
+  - family-names: "Seytre"
+    given-names: "Joël"
+    affiliation: "Kartoon AI"
+license: MIT
+license-url: "https://github.com/MatteoKartoon/BiRefNet/blob/main/LICENSE"
+abstract: >
+  While state-of-the-art background removal models excel at realistic imagery, 
+  they frequently underperform in specialized domains—such as anime-style content, 
+  where complex features like hair and transparency present unique challenges. 
+  To address this limitation, we collected and annotated a custom dataset of 
+  1,228 high-quality anime images of characters and objects, and fine-tuned the 
+  open-sourced BiRefNet model on this dataset. The resulting model, ToonOut, 
+  shows marked improvements in background removal accuracy for anime-style images, 
+  achieving an increase in Pixel Accuracy from 95.3% to 99.5% on our test set.
+keywords:
+  - "background removal"
+  - "anime"
+  - "image segmentation"
+  - "computer vision"
+  - "deep learning"
+  - "BiRefNet"
+  - "fine-tuning"
+preferred-citation:
+  type: article
+  title: "ToonOut: Fine-tuned Background Removal for Anime Characters"
+  authors:
+    - family-names: "Muratori"
+      given-names: "Matteo"
+      affiliation: "University of Bologna, Kartoon AI"
+    - family-names: "Seytre"
+      given-names: "Joël"
+      affiliation: "Kartoon AI"
+  year: 2025
+  url: "https://arxiv.org/abs/2509.06839"
