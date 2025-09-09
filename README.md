@@ -2,9 +2,17 @@
 
 ![Models Comparison](images/models_comparison.png)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)  
-Code and model weights are released under the **MIT License**.  
-Dataset is released under the **CC-BY 4.0 License** (see [LICENSE-DATASET](LICENSE-DATASET)).  
+[![arXiv](https://img.shields.io/badge/arXiv-2509.06839-b31b1b.svg)](https://arxiv.org/abs/2509.06839)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Dataset License](https://img.shields.io/badge/Dataset%20License-CC--BY%204.0-green.svg)](LICENSE-DATASET)
+[![HF Model](https://img.shields.io/badge/🤗%20HF-Model-orange.svg)](https://huggingface.co/joelseytre/toonout)
+[![HF Dataset](https://img.shields.io/badge/🤗%20HF-Dataset-blue.svg)](https://huggingface.co/datasets/joelseytre/toonout)
+[![DOI](https://img.shields.io/badge/DOI-10.48550/arXiv.2509.06839-blue.svg)](https://doi.org/10.48550/arXiv.2509.06839)
+
+**Quick Access:**
+- 📄 **Paper**: [arXiv:2509.06839](https://arxiv.org/abs/2509.06839)
+- 🤖 **Model**: [joelseytre/toonout](https://huggingface.co/joelseytre/toonout)
+- 📊 **Dataset**: [joelseytre/toonout](https://huggingface.co/datasets/joelseytre/toonout)
 
 ---
 
@@ -13,8 +21,6 @@ Dataset is released under the **CC-BY 4.0 License** (see [LICENSE-DATASET](LICEN
 While state-of-the-art background removal models excel at realistic imagery, they frequently underperform in specialized domains—such as anime-style content, where complex features like hair and transparency present unique challenges.
 
 To address this limitation, we collected and annotated a custom dataset of **1,228 high-quality anime images** of characters and objects, and fine-tuned the open-sourced **BiRefNet** model on this dataset. The resulting model, **ToonOut**, shows marked improvements in background removal accuracy for anime-style images, achieving an increase in Pixel Accuracy from **95.3% to 99.5%** on our test set.
-
-We are open-sourcing the **code, fine-tuned model weights, and dataset**.
 
 ---
 
@@ -94,8 +100,7 @@ The dataset consists of 1,228 annotated anime images, curated and labeled for ba
 
 ![Dataset Example](images/dataset_example.jpg)
 
-- **License**: CC-BY 4.0 (must credit authors).
-- **Hugging Face Dataset**: [https://huggingface.co/datasets/joelseytre/toonout](https://huggingface.co/datasets/joelseytre/toonout)
+- **License**: CC-BY 4.0 (must credit authors)
 
 ### Dataset Composition
 
@@ -129,8 +134,7 @@ toonout_dataset/
 
 The fine-tuned ToonOut weights are provided for easy inference.
 
-- **License**: MIT.
-- **Hugging Face Model**: [https://huggingface.co/joelseytre/toonout](https://huggingface.co/joelseytre/toonout)
+- **License**: MIT
 
 Example usage:
 
@@ -144,8 +148,6 @@ This repository accompanies the paper:
 
 **ToonOut: Fine-tuned Background Removal for Anime Characters**  
 Matteo Muratori (University of Bologna, Kartoon AI), Joël Seytre (Kartoon AI)
-
-- **arXiv**: [https://arxiv.org/abs/2509.06839](https://arxiv.org/abs/2509.06839)
 
 ---
 
