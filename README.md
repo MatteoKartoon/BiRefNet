@@ -24,14 +24,15 @@ To address this limitation, we collected and annotated a custom dataset of **1,2
 
 ---
 
-## Repository Structure
+## Repository Structure (main files & folders)
 
 ```
 ├── birefnet/           # Core library code
 ├── scripts/            # Python scripts (training, evaluation, etc.)
 ├── bash_scripts/       # Bash entrypoint scripts
 ├── LICENSE             # MIT License (code + weights)
-└── LICENSE-DATASET     # CC-BY 4.0 License (dataset)
+├── LICENSE-DATASET     # CC-BY 4.0 License (dataset)
+└── toonout_demo.ipynb  # demo running inference using fine-tuned weights
 
 ```
 
@@ -42,6 +43,8 @@ To address this limitation, we collected and annotated a custom dataset of **1,2
 This repository is a fork of the original BiRefNet with enhanced functionality and corrected settings for anime-style background removal.
 
 ### Code
+
+*Disclaimer: this repo was used on an environment with 2x GeForce RTW 4090 instances with 24GB of VRAM. You might need to adapt some of your settings to run the same scripts we used (in particular: the number of GPUs)*
 
 - **Adjusted Training Settings**: Added `train_finetuning.sh` with proper configuration to avoid NaN gradient problems (switched to `bfloat16` data type)
 - **Fixed Evaluation**: Added `evaluations.py` with corrected settings from the original `eval_existingOnes.py`
