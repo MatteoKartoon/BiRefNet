@@ -175,4 +175,6 @@ If you use this work, please cite:
 
 ## Acknowledgements
 
+Project by *Kartoon AI*, powering **toongether**, check us out at [kartoon.ai](kartoon.ai) & [toongether.ai](toongether.ai)
+
 This project is forked from BiRefNet, originally licensed under MIT.
