@@ -14,3 +14,6 @@ tabulate
 
 huggingface-hub>0.25
 accelerate
+
+gradio
+transformers
