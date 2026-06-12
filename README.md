@@ -13,7 +13,7 @@
 - 📄 **Paper**: [arXiv:2509.06839](https://arxiv.org/abs/2509.06839)
 - 🤖 **Model**: [joelseytre/toonout](https://huggingface.co/joelseytre/toonout)
 - 📊 **Dataset**: [joelseytre/toonout](https://huggingface.co/datasets/joelseytre/toonout)
-- 🔌 **Endpoint**: [replicate.com/sprited/birefnet-toonout](https://replicate.com/sprited/birefnet-toonout) (courtesy of J. H. Cho @Sprited)
+- 🔌 **Endpoint**: [replicate.com/sprited/birefnet-toonout](https://replicate.com/sprited/birefnet-toonout) (courtesy of J. H. Cho @[sprited](sprited.ai))
 
 ---
 
